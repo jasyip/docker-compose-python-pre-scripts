@@ -129,35 +129,32 @@ class Copy(_Copy):
             default_dir_perms,
         )
 
-    def changes_user_owner(self) -> bool:
-        return any(child.changes_user_owner() for child in self.children) or (
+    def _changes_user_owner(self) -> bool:
+        return any(child._changes_user_owner() for child in self.children) or (
             self.default_user_owner is not None
             and self.path.stat().st_uid != self.default_user_owner
         )
 
-    def changes_group_owner(self) -> bool:
-        return any(child.changes_group_owner() for child in self.children) or (
+    def _changes_group_owner(self) -> bool:
+        return any(child._changes_group_owner() for child in self.children) or (
             self.default_group_owner is not None
             and self.path.stat().st_gid != self.default_group_owner
         )
 
-    def may_change_perms(self) -> bool:
-        return any(child.may_change_perms() for child in self.children) or not (
+    def _may_change_perms(self) -> bool:
+        return any(child._may_change_perms() for child in self.children) or not (
             self.default_file_perms is None and self.default_dir_perms is None
         )
 
-    def children_have_custom_subdir(self) -> bool:
-        return any(
-            child.children_have_custom_subdir() or child.subdir is not None
-            for child in self.children
-        )
+    def _children_have_custom_subdir(self) -> bool:
+        return any(child.subdir is not None for child in self.children)
 
     def artificial(self) -> bool:
         return (
-            self.changes_user_owner()
-            or self.changes_group_owner()
-            or self.may_change_perms()
-            or self.children_have_custom_subdir()
+            self._changes_user_owner()
+            or self._changes_group_owner()
+            or self._may_change_perms()
+            or self._children_have_custom_subdir()
             or any(child.artificial() for child in self.children)
         )
 
@@ -250,7 +247,7 @@ def _get_vol_dirs(
                 continue
 
             parents: set[Path] = set(copyobj.path.parent for copyobj in copyobjs)
-            is_temp: bool = len(parents) > 1 or any(copyobjs)
+            is_temp: bool = len(parents) > 1 or any(copyobj.artificial() for copyobj in copyobjs)
 
             holding_dir: Path
             if is_temp:
