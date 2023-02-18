@@ -41,7 +41,7 @@ def shred_dir(directory: PathRep, shred_options: Iterable[str] = tuple()) -> Non
 
 class _Copy(NamedTuple):
     path: Path
-    children: Collection["Copy"]
+    children: Collection["Copy"] # type: ignore
     subdir: Optional[PurePath]
     default_user_owner: Optional[int]
     default_group_owner: Optional[int]
