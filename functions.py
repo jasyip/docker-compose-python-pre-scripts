@@ -6,6 +6,7 @@ from os import chown as os_chown
 from os import walk as os_walk
 from os.path import join as path_join
 from pathlib import Path, PurePath
+from platform import python_version_tuple
 from pwd import getpwnam
 from shutil import copytree
 from shutil import move as sh_move
@@ -13,10 +14,15 @@ from shutil import rmtree
 from subprocess import Popen, SubprocessError
 from subprocess import run as sp_run
 from tempfile import mkdtemp
-from typing import Any, NamedTuple, Optional, TypeAlias
+from typing import Any, NamedTuple, Optional, Union
 from uuid import uuid4
 
-PathRep: TypeAlias = str | PathLike
+if tuple(map(int, python_version_tuple())) < (3, 10):
+    PathRep = Union[str, PathLike]
+else:
+    from typing import TypeAlias  # type: ignore
+
+    PathRep: TypeAlias = str | PathLike  # type: ignore
 
 
 def shred_dir(directory: PathRep, shred_options: Iterable[str] = tuple()) -> None:
@@ -97,8 +103,8 @@ class Copy(_Copy):
         children: Collection["Copy"],
         subdir: Optional[PathRep] = None,
         *,
-        default_user_owner: Optional[int | str] = None,
-        default_group_owner: Optional[int | str] = None,
+        default_user_owner: Optional[Union[int, str]] = None,
+        default_group_owner: Optional[Union[int, str]] = None,
         default_file_perms: Optional[str] = None,
         default_dir_perms: Optional[str] = None,
     ):
