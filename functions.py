@@ -41,7 +41,7 @@ def shred_dir(directory: PathRep, shred_options: Iterable[str] = tuple()) -> Non
 
 class _Copy(NamedTuple):
     path: Path
-    children: Collection["Copy"] # type: ignore
+    children: Collection["Copy"]  # type: ignore
     subdir: Optional[PurePath]
     default_user_owner: Optional[int]
     default_group_owner: Optional[int]
@@ -247,7 +247,9 @@ def _get_vol_dirs(
                 continue
 
             parents: set[Path] = set(copyobj.path.parent for copyobj in copyobjs)
-            is_temp: bool = len(parents) > 1 or any(copyobj.artificial() for copyobj in copyobjs)
+            is_temp: bool = len(parents) > 1 or any(
+                copyobj.artificial() for copyobj in copyobjs
+            )
 
             holding_dir: Path
             if is_temp:
@@ -255,12 +257,14 @@ def _get_vol_dirs(
                 try:
                     for copyobj in copyobjs:
                         output_dir: Path = (
-                                holding_dir
-                                if copyobj.subdir is None
-                                else holding_dir / copyobj.subdir
+                            holding_dir
+                            if copyobj.subdir is None
+                            else holding_dir / copyobj.subdir
                         )
                         copytree(copyobj.path, output_dir / copyobj.path.name)
-                        copyobj.set_metadata(copyobj.path.parent, output_dir, *args, **kwargs)
+                        copyobj.set_metadata(
+                            copyobj.path.parent, output_dir, *args, **kwargs
+                        )
                 except:
                     shred_dir(holding_dir)
             else:
@@ -289,9 +293,13 @@ def copy_to_volume(
 
         sp_run(
             (
-                "docker", "container", "create",
-                "-d", "--rm",
-                "--name", container_name,
+                "docker",
+                "container",
+                "create",
+                "-d",
+                "--rm",
+                "--name",
+                container_name,
                 *chain(
                     *(("-v", f"{vol_dir}:/mnt/{vol}") for vol, vol_dir, *_ in vol_dirs)
                 ),
