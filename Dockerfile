@@ -19,6 +19,6 @@ WORKDIR /home/podman
 COPY --chown=podman:podman *.py ./
 COPY --chown=podman:podman test_podman.sh ./
 
-RUN "python${PYTHON_VERSION}" functions.py
+# RUN "python${PYTHON_VERSION}" functions.py
 
 ENTRYPOINT mypy functions.py; pytest
