@@ -36,3 +36,14 @@ def test_shred_dir(directory):
     except:
         rmtree(tmp_dir)
         raise
+
+#TODO: use pytest fixture to convert string directory path into Copy object conveniently?
+
+@parametrize("copyobj", ())
+def test_copy_artificial(copyobj):
+
+@parametrize("copyobj", ())
+def test_set_metadata(copyobj):
+
+@parametrize("volume_name, directories", ())
+def test_copy_to_volume(volume_name, directories):
