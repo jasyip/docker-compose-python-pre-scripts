@@ -17,15 +17,26 @@ from tempfile import mkdtemp
 from typing import Any, NamedTuple, Optional, Union
 from uuid import uuid4
 
-if tuple(map(int, python_version_tuple())) < (3, 10):
-    PathRep = Union[str, PathLike]
-else:
-    from typing import TypeAlias  # type: ignore
+if tuple(map(int, python_version_tuple())) >= (3, 10):
+    from typing import TypeAlias # type: ignore
+    PathRep: TypeAlias # type: ignore
+PathRep = Union[str, PathLike]
 
-    PathRep: TypeAlias = str | PathLike  # type: ignore
 
 
 def shred_dir(directory: PathRep, shred_options: Iterable[str] = tuple()) -> None:
+    """
+    Shreds all files and subdirectories under specified directory to prevent
+    leakage of sensitive data, as a simple ``rm -r`` or ``shutil.rmtree`` does not shred
+    each individual file's content.
+
+    :param directory: directory to shred
+    :type directory: ``str | PathLike``
+
+    :param shred_options: flags to pass to UNIX `shred` command (``-u`` is already passed.)
+    :type shred_options: ``Iterable[str]``
+
+    """
     sp_run(
         (
             "shred",
@@ -64,7 +75,7 @@ class Copy(_Copy):
     :param path: path on host file system
     :type path: ``str | PathLike``
 
-    :param children: additional paths or `Copy` objects that are children of this `Copy` object.
+    :param children: additional paths or ``Copy`` objects that are children of this ``Copy`` object.
         When children are copied to the Docker container, their metadata will inherit their
         parents' default metadata unless overriden.
     :type children: ``Collection[Copy]``
@@ -82,13 +93,13 @@ class Copy(_Copy):
         it will be translated to a UID according to host file system, not Docker container.
     :type default_group_owner: ``Optional[int | str]``
 
-    :param default_file_params: Argument to UNIX `chmod`. If specified and `path` is a file,
-        then just the file's permissions will be modified. If `path` is a directory,
+    :param default_file_params: Argument to UNIX `chmod`. If specified and ``path`` is a file,
+        then just the file's permissions will be modified. If ``path`` is a directory,
         all children files' permissions will be modified as such unless those children files or
         their directory parents override this value for themselves.
     :type default_file_params: ``Optional[str]``
 
-    :param default_dir_params: Argument to UNIX `chmod`. If specified and `path` is a directory,
+    :param default_dir_params: Argument to UNIX `chmod`. If specified and ``path`` is a directory,
         then the permissions of the directory and all children directories will be modified
         (unless those children directories or their directory parents
         override this value for themselves).
@@ -156,6 +167,13 @@ class Copy(_Copy):
         return any(child.subdir is not None for child in self.children)
 
     def artificial(self) -> bool:
+        """
+        Returns whether the represented path must be copied to a temporary directory or not,
+        taking into account the user/group owner or permissions that the files should
+        have inside the Docker volume once copied. A ``False`` value means that
+        it is safe to mount the path directly in the Docker container that facilitates
+        the copying.
+        """
         return (
             self._changes_user_owner()
             or self._changes_group_owner()
@@ -173,6 +191,35 @@ class Copy(_Copy):
         default_file_perms: Optional[str] = None,
         default_dir_perms: Optional[str] = None,
     ) -> None:
+
+        """
+        First determines whether ``Copy`` object is artificial. If so,
+        it copies all files/directory to a temporary directory, then sets any desired metadata
+        (user/group owner, permissions) to appropriate files/directories in the 
+        temporary directory relative to the original root path.
+
+        :param parent_dir: The parent directory that holds the root ``Copy`` object.
+            Recursive calls of this function hold this parameter constant.
+        :type parent_dir: ``Path``
+
+        :param output_dir: The output directory that represents the root ``Copy`` object.
+            Recursive calls of this function hold this parameter constant.
+        :type output_dir: ``Path``
+
+        :param default_user_owner: Self-explanatory, see ``Copy.default_user_owner``
+        :type default_user_owner: ``Optional[int]``
+
+        :param default_group_owner: Self-explanatory, see ``Copy.default_group_owner``
+        :type default_group_owner: ``Optional[int]``
+
+        :param default_file_perms: Self-explanatory, see ``Copy.default_file_perms``
+        :type default_file_perms: ``Optional[str]``
+
+        :param default_dir_perms: Self-explanatory, see ``Copy.default_dir_perms``
+        :type default_dir_perms: ``Optional[str]``
+
+        """
+
         relative_path: PurePath = self.path.relative_to(parent_dir)
         if self.subdir is not None:
             (output_dir / self.subdir).mkdir(parents=True)
@@ -246,6 +293,10 @@ def _get_vol_dirs(
     *args,
     **kwargs,
 ) -> list[_VolDir]:
+    """
+    Returns a list of directories that can be directly copied to the Docker volume after
+    setting up desired file structure, metadata, etc.
+    """
     try:
         vol_dirs: list[_VolDir] = []
         for vol, copyobjs in volumes.items():
@@ -292,6 +343,23 @@ def copy_to_volume(
     *args,
     **kwargs,
 ) -> None:
+    """
+    Takes a dictionary mapping Docker volume names to a number of files or directories
+    that will be copied to their corresponding volume while preserving file structure and
+    respecting desired metadata.
+
+    :param volumes: Mapping from Docker volume name to non-empty collection of ``Copy`` objects.
+    :type volumes: ``Mapping[str, Collection[Copy]``
+
+    :param image: Docker image to use, uses ``"hello-world"`` by default. ``busybox:musl``
+        is not a bad choice if some core utilities are needed.
+    :type image: ``str``
+
+    Extraneous arguments are passed to calls to ``Copy.set_metadata`` for each ``Copy`` object.
+    """
+
+
+
     vol_dirs = _get_vol_dirs(volumes, *args, **kwargs)
 
     try:
