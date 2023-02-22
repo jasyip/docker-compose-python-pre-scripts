@@ -18,10 +18,10 @@ from typing import Any, NamedTuple, Optional, Union
 from uuid import uuid4
 
 if tuple(map(int, python_version_tuple())) >= (3, 10):
-    from typing import TypeAlias # type: ignore
-    PathRep: TypeAlias # type: ignore
-PathRep = Union[str, PathLike]
+    from typing import TypeAlias  # type: ignore
 
+    PathRep: TypeAlias  # type: ignore
+PathRep = Union[str, PathLike]
 
 
 def shred_dir(directory: PathRep, shred_options: Iterable[str] = tuple()) -> None:
@@ -191,11 +191,10 @@ class Copy(_Copy):
         default_file_perms: Optional[str] = None,
         default_dir_perms: Optional[str] = None,
     ) -> None:
-
         """
         First determines whether ``Copy`` object is artificial. If so,
         it copies all files/directory to a temporary directory, then sets any desired metadata
-        (user/group owner, permissions) to appropriate files/directories in the 
+        (user/group owner, permissions) to appropriate files/directories in the
         temporary directory relative to the original root path.
 
         :param parent_dir: The parent directory that holds the root ``Copy`` object.
@@ -357,8 +356,6 @@ def copy_to_volume(
 
     Extraneous arguments are passed to calls to ``Copy.set_metadata`` for each ``Copy`` object.
     """
-
-
 
     vol_dirs = _get_vol_dirs(volumes, *args, **kwargs)
 
