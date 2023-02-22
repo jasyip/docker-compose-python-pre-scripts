@@ -7,7 +7,7 @@ for version in ${PYTHON_VERSIONS}; do
             --user podman \
             --security-opt label=disable \
             --device /dev/fuse \
-            "vps_python:${version}"
+            "vps_python:${version}" || exit
 done
 
 
