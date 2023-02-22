@@ -78,7 +78,7 @@ class Copy(_Copy):
         it will be translated to a UID according to host file system, not Docker container.
     :type default_user_owner: ``Optional[int | str]``
 
-    :param group_user_owner: Sets the copied file's user owner and
+    :param default_group_owner: Sets the copied file's user owner and
         default user owner for children in the Docker volume. If using a string name, note that
         it will be translated to a UID according to host file system, not Docker container.
     :type default_group_owner: ``Optional[int | str]``
