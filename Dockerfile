@@ -17,6 +17,7 @@ RUN ["podman", "pull", "hello-world"]
 WORKDIR /home/podman
 
 COPY --chown=podman:podman *.py ./
+COPY --chown=podman:podman tests ./tests
 COPY --chown=podman:podman test_podman.sh ./
 
 # RUN "python${PYTHON_VERSION}" functions.py
