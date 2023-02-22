@@ -35,24 +35,14 @@ def shred_dir(directory: PathRep, shred_options: Iterable[str] = tuple()) -> Non
 
     :param shred_options: flags to pass to UNIX `shred` command (``-u`` is already passed.)
     :type shred_options: ``Iterable[str]``
-
     """
-    sp_run(
-        (
-            "shred",
-            "-f",
-            "-u",
-            *shred_options,
-            "--",
-            *chain(
-                *(
-                    (path_join(dirpath, file) for file in files)
-                    for dirpath, _, files in os_walk(directory)  # type: ignore
-                )
-            ),
-        ),
-        check=True,
-    )
+
+    files_to_shred: list[str] = []
+    for dirpath, _, files in os_walk(directory):  # type: ignore
+        files_to_shred.extend(path_join(dirpath, file) for file in files)
+
+    if files_to_shred:
+        sp_run(("shred", "-f", "-u", *shred_options, "--", *files_to_shred), check=True)
     rmtree(directory)
 
 
