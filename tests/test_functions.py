@@ -1,13 +1,16 @@
-from shutil import copytree, rmtree
-from pathlib import Path, PurePath
+import os
 import sys
+from collections.abc import Callable
+from pathlib import Path, PurePath
+from shutil import copytree, rmtree
+from typing import Any, Optional
+
+import pytest
 
 sys.path.append(str(PurePath(__file__).parents[1]))
+
 import functions
 from functions import Copy
-
-import os
-import pytest
 
 
 @pytest.fixture(params=(Path(__file__).parent / "data").iterdir())
@@ -29,22 +32,27 @@ def test_shred_dir(test_data_path, tmp_path):
         raise
 
 
-
-
-
 @pytest.fixture
 def root_copyobj(test_data_path):
     return Copy(test_data_path)
 
 
-
 def filled_children(copyobj, *args, **kwargs):
-
     if not copyobj.path.is_dir():
         return copyobj
 
-    children = map(filled_children, (Copy(path, *args, **kwargs) for path in copyobj.path.iterdir()))
+    children = map(
+        filled_children,
+        (Copy(path, *args, **kwargs) for path in copyobj.path.iterdir()),
+    )
     return copyobj._replace(children=tuple(children))
+
+def recursive_property(copyobj, **kwargs):
+    if "children" in kwargs:
+        raise ValueError
+
+    children = tuple(recursive_property(child, *args, **kwargs) for child in copyobj.children)
+    return copyobj._replace(children=children, **kwargs)
 
 
 def test_copy_artificial(root_copyobj):
@@ -52,6 +60,13 @@ def test_copy_artificial(root_copyobj):
 
     with_children = filled_children(root_copyobj)
     assert not with_children.artificial()
+
+    diff_initial_subdir = root_copyobj._replace(subdir = PurePath("/a"))
+    assert not diff_initial_subdir.artificial()
+
+
+
+
 
 """
 @parametrize("copyobj", ())
