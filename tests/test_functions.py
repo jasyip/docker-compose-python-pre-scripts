@@ -1,5 +1,4 @@
 from shutil import copytree, rmtree
-from tempfile import mkdtemp
 from pathlib import Path, PurePath
 import sys
 
@@ -12,20 +11,19 @@ import pytest
 
 
 @pytest.fixture(params=(Path(__file__).parent / "data").iterdir())
-def data_dir(request):
+def test_data_path(request):
     return request.param
 
 
-def test_shred_dir(data_dir):
-    tmp_dir = Path(mkdtemp())
-
-    copytree(data_dir, tmp_dir / data_dir.name)
+def test_shred_dir(test_data_path, tmp_path):
+    dest_path = tmp_path / test_data_path.name
+    copytree(test_data_path, dest_path)
 
     try:
-        functions.shred_dir(tmp_dir)
-        assert not tmp_dir.is_dir()
+        functions.shred_dir(dest_path)
+        assert not dest_path.exists()
     except:
-        rmtree(tmp_dir)
+        rmtree(dest_path)
         raise
 
 
@@ -33,8 +31,8 @@ def test_shred_dir(data_dir):
 
 
 @pytest.fixture
-def root_copyobj(data_dir):
-    return Copy(data_dir)
+def root_copyobj(test_data_path):
+    return Copy(test_data_path)
 
 
 
