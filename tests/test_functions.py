@@ -16,6 +16,8 @@ def test_data_path(request):
 
 
 def test_shred_dir(test_data_path, tmp_path):
+    if not test_data_path.is_dir():
+        pytest.skip(f"{test_data_path=} is not a directory")
     dest_path = tmp_path / test_data_path.name
     copytree(test_data_path, dest_path)
 
