@@ -5,30 +5,21 @@ import sys
 
 sys.path.append(str(PurePath(__file__).parents[1]))
 import functions
+from functions import Copy
 
+import os
 import pytest
 
-parametrize = pytest.mark.parametrize
 
-data_dir = Path(__file__).parent / "data"
+@pytest.fixture(params=(Path(__file__).parent / "data").iterdir())
+def data_dir(request):
+    return request.param
 
 
-@parametrize(
-    "directory",
-    (
-        "many_files",
-        "many_files_tree",
-        "no_files",
-        "no_file_tree",
-        "single_file",
-        "single_file_tree",
-    ),
-)
-def test_shred_dir(directory):
-    directory = data_dir / directory
+def test_shred_dir(data_dir):
     tmp_dir = Path(mkdtemp())
 
-    copytree(directory, tmp_dir / directory.name)
+    copytree(data_dir, tmp_dir / data_dir.name)
 
     try:
         functions.shred_dir(tmp_dir)
@@ -37,13 +28,35 @@ def test_shred_dir(directory):
         rmtree(tmp_dir)
         raise
 
-#TODO: use pytest fixture to convert string directory path into Copy object conveniently?
 
-@parametrize("copyobj", ())
-def test_copy_artificial(copyobj):
 
+
+
+@pytest.fixture
+def root_copyobj(data_dir):
+    return Copy(data_dir)
+
+
+
+def filled_children(copyobj, *args, **kwargs):
+
+    if not copyobj.path.is_dir():
+        return copyobj
+
+    children = map(filled_children, (Copy(path, *args, **kwargs) for path in copyobj.path.iterdir()))
+    return copyobj._replace(children=tuple(children))
+
+
+def test_copy_artificial(root_copyobj):
+    assert not root_copyobj.artificial()
+
+    with_children = filled_children(root_copyobj)
+    assert not with_children.artificial()
+
+"""
 @parametrize("copyobj", ())
 def test_set_metadata(copyobj):
 
 @parametrize("volume_name, directories", ())
 def test_copy_to_volume(volume_name, directories):
+"""

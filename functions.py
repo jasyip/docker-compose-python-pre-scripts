@@ -101,7 +101,7 @@ class Copy(_Copy):
         cls,
         path: PathRep,
         /,
-        children: Collection["Copy"],
+        children: Collection["Copy"] = tuple(),
         subdir: Optional[PathRep] = None,
         *,
         default_user_owner: Optional[Union[int, str]] = None,

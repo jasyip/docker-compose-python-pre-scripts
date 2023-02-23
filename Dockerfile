@@ -20,6 +20,8 @@ COPY --chown=podman:podman *.py ./
 COPY --chown=podman:podman tests ./tests
 COPY --chown=podman:podman test_podman.sh ./
 
+# TODO: Mark copied (test) files as read only/immutable
+
 # RUN "python${PYTHON_VERSION}" functions.py
 
 ENTRYPOINT mypy functions.py; pytest
