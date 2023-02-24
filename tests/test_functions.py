@@ -3,11 +3,11 @@ import inspect
 import os
 import pwd
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from inspect import Parameter
 from pathlib import Path, PurePath
 from shutil import copytree, rmtree
-from typing import Any, Optional
+from typing import Any, Optional, NamedTuple
 from warnings import warn
 
 import pytest
@@ -26,7 +26,7 @@ def test_data_path(request):
 def test_shred_dir(test_data_path, tmp_path):
     if not test_data_path.is_dir():
         pytest.skip(f"{test_data_path=} is not a directory")
-    dest_path = tmp_path / test_data_path.name
+    dest_path: Path = tmp_path / test_data_path.name
     copytree(test_data_path, dest_path)
 
     try:
@@ -42,15 +42,15 @@ def root_copyobj(test_data_path):
     return Copy(test_data_path)
 
 
-def replace_namedtuple(nt, **kwargs):
-    as_dict = nt._asdict()
-    positional_only = []
+def replace_namedtuple(nt: NamedTuple, **kwargs) -> NamedTuple:
+    as_dict: dict[str, Any] = nt._asdict()
+    positional_only: list[Any] = []
 
     for k, v in kwargs.items():
         if k in as_dict:
             as_dict[k] = v
 
-    constructor = type(nt)
+    constructor: Callable = type(nt)
 
     for name, param in inspect.signature(constructor).parameters.items():
         if param.kind == Parameter.POSITIONAL_ONLY:
@@ -67,7 +67,7 @@ def copyobj_filled_children(root_copyobj):
                 pytest.skip(f"{copyobj} is just a simple file")
             return copyobj
 
-        children = tuple(
+        children: Sequence[Copy] = tuple(
             map(
                 filled_children,
                 (Copy(path, *args, **kwargs) for path in copyobj.path.iterdir()),
@@ -84,17 +84,21 @@ def recursive_property(copyobj, **kwargs):
     elif "children" in kwargs:
         raise ValueError
 
-    children = tuple(recursive_property(child, **kwargs) for child in copyobj.children)
+    children: Sequence[Copy] = tuple(
+        recursive_property(child, **kwargs) for child in copyobj.children
+    )
     return replace_namedtuple(copyobj, children=children, **kwargs)
 
 
 def recursive_replace(copyobj, f):
-    children = tuple(recursive_replace(child, f) for child in copyobj.children)
+    children: Sequence[Copy] = tuple(
+        recursive_replace(child, f) for child in copyobj.children
+    )
     return replace_namedtuple(f(copyobj), children=children)
 
 
 def recursive_replace_subdir(copyobj, parent_dir=None, suffix="~"):
-    children = tuple(
+    children: Sequence[Copy] = tuple(
         recursive_replace_subdir(child, copyobj.path, suffix)
         for child in copyobj.children
     )
@@ -115,9 +119,7 @@ def recursive_replace_subdir(copyobj, parent_dir=None, suffix="~"):
 def test_copy_simple_artificial(root_copyobj):
     assert not root_copyobj.artificial()
 
-    diff_initial_subdir = replace_namedtuple(
-        root_copyobj, subdir=PurePath("a")
-    )
+    diff_initial_subdir = replace_namedtuple(root_copyobj, subdir=PurePath("a"))
     assert not diff_initial_subdir.artificial()
 
     diff_file_permissions = replace_namedtuple(root_copyobj, default_file_perms="000")
@@ -198,7 +200,13 @@ def test_copy_recursive_property_artificial(
 ):
     replaced = recursive_replace(copyobj_filled_children, property_changer)
     assert replaced.artificial() == artificial
-    assert replace_namedtuple(copyobj_filled_children, children=replaced.children).artificial() == artificial
+    if copyobj_filled_children.children:
+        assert (
+            replace_namedtuple(
+                copyobj_filled_children, children=replaced.children
+            ).artificial()
+            == artificial
+        )
 
 
 """
