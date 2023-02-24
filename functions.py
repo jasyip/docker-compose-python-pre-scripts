@@ -162,7 +162,7 @@ class Copy(_Copy):
         return (
             any(child._may_change_perms() for child in self.children)
             or self.default_file_perms is not None
-            or (self.default_dir_perms is None) != self.path.is_dir()
+            or (self.path.is_dir() and self.default_dir_perms is not None)
         )
 
     def _children_have_custom_subdir(self) -> bool:
@@ -181,7 +181,6 @@ class Copy(_Copy):
             or self._changes_group_owner()
             or self._may_change_perms()
             or self._children_have_custom_subdir()
-            or any(child.artificial() for child in self.children)
         )
 
     def set_metadata(
