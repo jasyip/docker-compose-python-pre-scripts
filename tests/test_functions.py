@@ -2,12 +2,13 @@ import grp
 import inspect
 import os
 import pwd
+import random
 import sys
 from collections.abc import Callable, Sequence
 from inspect import Parameter
 from pathlib import Path, PurePath
 from shutil import copytree, rmtree
-from typing import Any, Optional, NamedTuple
+from typing import Any, NamedTuple, Optional, Union
 from warnings import warn
 
 import pytest
@@ -20,6 +21,9 @@ from functions import Copy
 
 @pytest.fixture(params=(Path(__file__).parent / "data").iterdir())
 def test_data_path(request):
+    """
+    Return all data test cases under the "data" folder
+    """
     return request.param
 
 
@@ -42,7 +46,10 @@ def root_copyobj(test_data_path):
     return Copy(test_data_path)
 
 
-def replace_namedtuple(nt: NamedTuple, **kwargs) -> NamedTuple:
+def _replace_namedtuple(nt: NamedTuple, **kwargs) -> NamedTuple:
+    """
+    An alternative to `namedtuple._replace` that invokes `namedtuple.__new__` code behavior
+    """
     as_dict: dict[str, Any] = nt._asdict()
     positional_only: list[Any] = []
 
@@ -61,6 +68,11 @@ def replace_namedtuple(nt: NamedTuple, **kwargs) -> NamedTuple:
 
 @pytest.fixture
 def copyobj_filled_children(root_copyobj):
+    """
+    Returns a `Copy` object whose children are also recursively-filled `Copy` objects that
+    accurately reflect the file tree structure
+    """
+
     def filled_children(copyobj, *args, **kwargs):
         if not copyobj.path.is_dir():
             if copyobj is root_copyobj:
@@ -73,41 +85,49 @@ def copyobj_filled_children(root_copyobj):
                 (Copy(path, *args, **kwargs) for path in copyobj.path.iterdir()),
             )
         )
-        return replace_namedtuple(copyobj, children=children)
+        return _replace_namedtuple(copyobj, children=children)
 
     return filled_children(root_copyobj)
 
 
-def recursive_property(copyobj, **kwargs):
+def _recursive_property(copyobj: Copy, **kwargs) -> Copy:
+    """
+    Recursively sets specified properties in `Copy` object
+    """
     if not kwargs:
         warn(f"kwargs is empty")
     elif "children" in kwargs:
         raise ValueError
 
     children: Sequence[Copy] = tuple(
-        recursive_property(child, **kwargs) for child in copyobj.children
+        _recursive_property(child, **kwargs) for child in copyobj.children
     )
-    return replace_namedtuple(copyobj, children=children, **kwargs)
+    return _replace_namedtuple(copyobj, children=children, **kwargs)
 
 
-def recursive_replace(copyobj, f):
+def _recursive_replace(copyobj: Copy, f: Callable[[Copy], Copy]) -> Copy:
+    """
+    Recursively transforms each `Copy` object through provided unary function
+    """
     children: Sequence[Copy] = tuple(
-        recursive_replace(child, f) for child in copyobj.children
+        _recursive_replace(child, f) for child in copyobj.children
     )
-    return replace_namedtuple(f(copyobj), children=children)
+    return _replace_namedtuple(f(copyobj), children=children)
 
 
-def recursive_replace_subdir(copyobj, parent_dir=None, suffix="~"):
+def recursive_replace_subdir(
+    copyobj: Copy, parent_dir: Optional[Path] = None, suffix: str = "~"
+) -> Copy:
     children: Sequence[Copy] = tuple(
         recursive_replace_subdir(child, copyobj.path, suffix)
         for child in copyobj.children
     )
     if parent_dir is None:
-        return replace_namedtuple(
+        return _replace_namedtuple(
             copyobj, subdir=copyobj.path.name + suffix, children=children
         )
 
-    return replace_namedtuple(
+    return _replace_namedtuple(
         copyobj,
         subdir=copyobj.path.relative_to(parent_dir).with_name(
             copyobj.path.name + suffix
@@ -119,13 +139,13 @@ def recursive_replace_subdir(copyobj, parent_dir=None, suffix="~"):
 def test_copy_simple_artificial(root_copyobj):
     assert not root_copyobj.artificial()
 
-    diff_initial_subdir = replace_namedtuple(root_copyobj, subdir=PurePath("a"))
+    diff_initial_subdir = _replace_namedtuple(root_copyobj, subdir=PurePath("a"))
     assert not diff_initial_subdir.artificial()
 
-    diff_file_permissions = replace_namedtuple(root_copyobj, default_file_perms="000")
+    diff_file_permissions = _replace_namedtuple(root_copyobj, default_file_perms="000")
     assert diff_file_permissions.artificial()
 
-    diff_dir_permissions = replace_namedtuple(root_copyobj, default_dir_perms="000")
+    diff_dir_permissions = _replace_namedtuple(root_copyobj, default_dir_perms="000")
     assert diff_dir_permissions.artificial() == diff_dir_permissions.path.is_dir()
 
 
@@ -136,50 +156,65 @@ def test_copy_recursive_artificial(copyobj_filled_children):
         assert diff_subdir.artificial()
 
 
-def set_same_user_owner(copyobj):
-    return replace_namedtuple(copyobj, default_user_owner=copyobj.path.stat().st_uid)
+# functions that serve as edge cases and will be used by `_recursive_replace`
 
 
-def set_same_user_owner_str(copyobj):
-    return replace_namedtuple(
+def set_same_user_owner(copyobj: Copy) -> Copy:
+    return _replace_namedtuple(copyobj, default_user_owner=copyobj.path.stat().st_uid)
+
+
+def set_same_user_owner_str(copyobj: Copy) -> Copy:
+    return _replace_namedtuple(
         copyobj, default_user_owner=pwd.getpwuid(copyobj.path.stat().st_uid).pw_name
     )
 
 
-def set_same_group_owner(copyobj):
-    return replace_namedtuple(copyobj, default_group_owner=copyobj.path.stat().st_gid)
+def set_same_group_owner(copyobj: Copy) -> Copy:
+    return _replace_namedtuple(copyobj, default_group_owner=copyobj.path.stat().st_gid)
 
 
-def set_same_group_owner_str(copyobj):
-    return replace_namedtuple(
+def set_same_group_owner_str(copyobj: Copy) -> Copy:
+    return _replace_namedtuple(
         copyobj, default_group_owner=grp.getgrgid(copyobj.path.stat().st_gid).gr_name
     )
 
 
-def set_diff_user_owner(copyobj):
-    return replace_namedtuple(
+def set_diff_user_owner(copyobj: Copy) -> Copy:
+    return _replace_namedtuple(
         copyobj, default_user_owner=copyobj.path.stat().st_uid + 1
     )
 
 
-def set_diff_user_owner_str(copyobj):
-    copyobj_uid = copyobj.path.stat().st_uid
+def set_diff_user_owner_str(copyobj: Copy) -> Copy:
+    copyobj_uid: int = copyobj.path.stat().st_uid
     for pw in pwd.getpwall():
         if pw.pw_uid != copyobj_uid:
-            return replace_namedtuple(copyobj, default_user_owner=pw.pw_name)
+            return _replace_namedtuple(copyobj, default_user_owner=pw.pw_name)
 
 
-def set_diff_group_owner(copyobj):
-    return replace_namedtuple(
+def set_diff_group_owner(copyobj: Copy) -> Copy:
+    return _replace_namedtuple(
         copyobj, default_group_owner=copyobj.path.stat().st_gid + 1
     )
 
 
-def set_diff_group_owner_str(copyobj):
-    copyobj_gid = copyobj.path.stat().st_gid
+def set_diff_group_owner_str(copyobj: Copy) -> Copy:
+    copyobj_gid: int = copyobj.path.stat().st_gid
     for gr in grp.getgrall():
         if gr.gr_gid != copyobj_gid:
-            return replace_namedtuple(copyobj, default_user_owner=gr.gr_name)
+            return _replace_namedtuple(copyobj, default_user_owner=gr.gr_name)
+
+
+def set_random_file_perms(copyobj: Copy) -> Copy:
+    return _replace_namedtuple(
+        copyobj, default_file_perms=f"{random.randrange(0o1000):03o}"
+    )
+
+
+def set_random_dir_perms(copyobj: Copy) -> Copy:
+    return _replace_namedtuple(
+        copyobj, default_file_perms=f"{random.randrange(0o1000):03o}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -193,16 +228,22 @@ def set_diff_group_owner_str(copyobj):
         (set_diff_user_owner_str, True),
         (set_diff_group_owner, True),
         (set_diff_group_owner_str, True),
+        (set_random_file_perms, True),
+        (set_random_dir_perms, lambda x: x.path.is_dir()),
     ),
 )
 def test_copy_recursive_property_artificial(
-    copyobj_filled_children, property_changer, artificial
+    copyobj_filled_children,
+    property_changer: Callable[[Copy], Copy],
+    artificial: Union[bool, Callable[[Copy], bool]],
 ):
-    replaced = recursive_replace(copyobj_filled_children, property_changer)
+    replaced = _recursive_replace(copyobj_filled_children, property_changer)
+    if callable(artificial):
+        artificial = artificial(replaced)
     assert replaced.artificial() == artificial
     if copyobj_filled_children.children:
         assert (
-            replace_namedtuple(
+            _replace_namedtuple(
                 copyobj_filled_children, children=replaced.children
             ).artificial()
             == artificial
