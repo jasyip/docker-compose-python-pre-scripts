@@ -118,7 +118,17 @@ class Copy(_Copy):
             if not isinstance(subdir, PurePath):
                 subdir = PurePath(subdir)
             if subdir.is_absolute():
-                raise ValueError("subdir cannot be an absolute path")
+                raise ValueError(f"{subdir=!r} cannot be an absolute path")
+
+        if isinstance(default_file_perms, str) and default_file_perms in ("", "--"):
+            raise ValueError(
+                f"{default_file_perms=!r} must be a valid argument to UNIX chmod"
+            )
+
+        if isinstance(default_dir_perms, str) and default_dir_perms in ("", "--"):
+            raise ValueError(
+                f"{default_dir_perms=!r} must be a valid argument to UNIX chmod"
+            )
 
         if isinstance(default_user_owner, str):
             default_user_owner = getpwnam(default_user_owner).pw_uid
@@ -149,8 +159,10 @@ class Copy(_Copy):
         )
 
     def _may_change_perms(self) -> bool:
-        return any(child._may_change_perms() for child in self.children) or not (
-            self.default_file_perms is None and self.default_dir_perms is None
+        return (
+            any(child._may_change_perms() for child in self.children)
+            or self.default_file_perms is not None
+            or (self.default_dir_perms is None) != self.path.is_dir()
         )
 
     def _children_have_custom_subdir(self) -> bool:
