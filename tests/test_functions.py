@@ -44,24 +44,19 @@ def root_copyobj(test_data_path):
 
 def replace_namedtuple(nt, **kwargs):
     as_dict = nt._asdict()
+    positional_only = []
+
     for k, v in kwargs.items():
         if k in as_dict:
             as_dict[k] = v
 
-    params = inspect.signature(type(nt)).parameters
-    positional_only = []
-    keywords = {}
-    for name, param in params.items():
-        if name == "cls" and param.kind in (
-            Parameter.POSITIONAL_ONLY,
-            Parameter.POSITIONAL_OR_KEYWORD,
-        ):
-            continue
+    constructor = type(nt)
 
+    for name, param in inspect.signature(constructor).parameters.items():
         if param.kind == Parameter.POSITIONAL_ONLY:
             positional_only.append(as_dict.pop(name))
 
-    return type(nt)(*positional_only, **as_dict)
+    return constructor(*positional_only, **as_dict)
 
 
 @pytest.fixture
@@ -98,6 +93,25 @@ def recursive_replace(copyobj, f):
     return replace_namedtuple(f(copyobj), children=children)
 
 
+def recursive_replace_subdir(copyobj, parent_dir=None, suffix="~"):
+    children = tuple(
+        recursive_replace_subdir(child, copyobj.path, suffix)
+        for child in copyobj.children
+    )
+    if parent_dir is None:
+        return replace_namedtuple(
+            copyobj, subdir=copyobj.path.name + suffix, children=children
+        )
+
+    return replace_namedtuple(
+        copyobj,
+        subdir=copyobj.path.relative_to(parent_dir).with_name(
+            copyobj.path.name + suffix
+        ),
+        children=children,
+    )
+
+
 def test_copy_simple_artificial(root_copyobj, copyobj_filled_children):
     assert not root_copyobj.artificial()
     assert not copyobj_filled_children.artificial()
@@ -108,7 +122,7 @@ def test_copy_simple_artificial(root_copyobj, copyobj_filled_children):
     assert not diff_initial_subdir.artificial()
 
     if copyobj_filled_children.children:
-        diff_subdir = recursive_property(copyobj_filled_children, subdir=PurePath("a"))
+        diff_subdir = recursive_replace_subdir(copyobj_filled_children)
         assert diff_subdir.artificial()
 
 
