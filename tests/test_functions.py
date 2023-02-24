@@ -112,15 +112,23 @@ def recursive_replace_subdir(copyobj, parent_dir=None, suffix="~"):
     )
 
 
-def test_copy_simple_artificial(root_copyobj, copyobj_filled_children):
+def test_copy_simple_artificial(root_copyobj):
     assert not root_copyobj.artificial()
-    assert not copyobj_filled_children.artificial()
 
     diff_initial_subdir = replace_namedtuple(
-        copyobj_filled_children, subdir=PurePath("a")
+        root_copyobj, subdir=PurePath("a")
     )
     assert not diff_initial_subdir.artificial()
 
+    diff_file_permissions = replace_namedtuple(root_copyobj, default_file_perms="000")
+    assert diff_file_permissions.artificial()
+
+    diff_dir_permissions = replace_namedtuple(root_copyobj, default_dir_perms="000")
+    assert diff_dir_permissions.artificial() == diff_dir_permissions.path.is_dir()
+
+
+def test_copy_recursive_artificial(copyobj_filled_children):
+    assert not copyobj_filled_children.artificial()
     if copyobj_filled_children.children:
         diff_subdir = recursive_replace_subdir(copyobj_filled_children)
         assert diff_subdir.artificial()
@@ -185,13 +193,12 @@ def set_diff_group_owner_str(copyobj):
         (set_diff_group_owner_str, True),
     ),
 )
-def test_copy_recursive_artificial(
+def test_copy_recursive_property_artificial(
     copyobj_filled_children, property_changer, artificial
 ):
-    assert (
-        recursive_replace(copyobj_filled_children, property_changer).artificial()
-        == artificial
-    )
+    replaced = recursive_replace(copyobj_filled_children, property_changer)
+    assert replaced.artificial() == artificial
+    assert replace_namedtuple(copyobj_filled_children, children=replaced.children) == artificial
 
 
 """
