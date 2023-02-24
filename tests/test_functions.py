@@ -198,7 +198,7 @@ def test_copy_recursive_property_artificial(
 ):
     replaced = recursive_replace(copyobj_filled_children, property_changer)
     assert replaced.artificial() == artificial
-    assert replace_namedtuple(copyobj_filled_children, children=replaced.children) == artificial
+    assert replace_namedtuple(copyobj_filled_children, children=replaced.children).artificial() == artificial
 
 
 """
