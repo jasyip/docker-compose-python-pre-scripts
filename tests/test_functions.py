@@ -1,9 +1,14 @@
+import grp
+import inspect
 import os
+import pwd
 import sys
 from collections.abc import Callable
+from inspect import Parameter
 from pathlib import Path, PurePath
 from shutil import copytree, rmtree
 from typing import Any, Optional
+from warnings import warn
 
 import pytest
 
@@ -37,35 +42,112 @@ def root_copyobj(test_data_path):
     return Copy(test_data_path)
 
 
-def filled_children(copyobj, *args, **kwargs):
-    if not copyobj.path.is_dir():
-        return copyobj
+def replace_namedtuple(nt, **kwargs):
+    as_dict = nt._asdict()
+    for k, v in kwargs.items():
+        if k in as_dict:
+            as_dict[k] = v
 
-    children = map(
-        filled_children,
-        (Copy(path, *args, **kwargs) for path in copyobj.path.iterdir()),
-    )
-    return copyobj._replace(children=tuple(children))
+    params = inspect.signature(type(nt)).parameters
+    positional_only = []
+    keywords = {}
+    for name, param in params.items():
+        if name == "cls" and param.kind in (
+            Parameter.POSITIONAL_ONLY,
+            Parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            continue
+
+        if param.kind == Parameter.POSITIONAL_ONLY:
+            positional_only.append(as_dict.pop(name))
+
+    return type(nt)(*positional_only, **as_dict)
+
+
+@pytest.fixture
+def copyobj_filled_children(root_copyobj):
+    def filled_children(copyobj, *args, **kwargs):
+        if not copyobj.path.is_dir():
+            if copyobj is root_copyobj:
+                pytest.skip(f"{copyobj} is just a simple file")
+            return copyobj
+
+        children = tuple(
+            map(
+                filled_children,
+                (Copy(path, *args, **kwargs) for path in copyobj.path.iterdir()),
+            )
+        )
+        return replace_namedtuple(copyobj, children=children)
+
+    return filled_children(root_copyobj)
+
 
 def recursive_property(copyobj, **kwargs):
-    if "children" in kwargs:
+    if not kwargs:
+        warn(f"kwargs is empty")
+    elif "children" in kwargs:
         raise ValueError
 
-    children = tuple(recursive_property(child, *args, **kwargs) for child in copyobj.children)
-    return copyobj._replace(children=children, **kwargs)
+    children = tuple(recursive_property(child, **kwargs) for child in copyobj.children)
+    return replace_namedtuple(copyobj, children=children, **kwargs)
 
 
-def test_copy_artificial(root_copyobj):
+def recursive_replace(copyobj, f):
+    children = tuple(recursive_replace(child, f) for child in copyobj.children)
+    return replace_namedtuple(f(copyobj), children=children)
+
+
+def test_copy_simple_artificial(root_copyobj, copyobj_filled_children):
     assert not root_copyobj.artificial()
+    assert not copyobj_filled_children.artificial()
 
-    with_children = filled_children(root_copyobj)
-    assert not with_children.artificial()
-
-    diff_initial_subdir = root_copyobj._replace(subdir = PurePath("/a"))
+    diff_initial_subdir = replace_namedtuple(
+        copyobj_filled_children, subdir=PurePath("a")
+    )
     assert not diff_initial_subdir.artificial()
 
+    if copyobj_filled_children.children:
+        diff_subdir = recursive_property(copyobj_filled_children, subdir=PurePath("a"))
+        assert diff_subdir.artificial()
 
 
+def set_same_user_owner(copyobj):
+    return replace_namedtuple(copyobj, default_user_owner=copyobj.path.stat().st_uid)
+
+
+def set_same_user_owner_str(copyobj):
+    return replace_namedtuple(
+        copyobj, default_user_owner=pwd.getpwuid(copyobj.path.stat().st_uid).pw_name
+    )
+
+
+def set_same_group_owner(copyobj):
+    return replace_namedtuple(copyobj, default_group_owner=copyobj.path.stat().st_gid)
+
+
+def set_same_group_owner_str(copyobj):
+    return replace_namedtuple(
+        copyobj, default_group_owner=grp.getgrgid(copyobj.path.stat().st_gid).gr_name
+    )
+
+
+@pytest.mark.parametrize(
+    "property_changer,artificial",
+    (
+        (set_same_user_owner, False),
+        (set_same_user_owner_str, False),
+        (set_same_group_owner, False),
+        (set_same_group_owner_str, False),
+    ),
+)
+def test_copy_recursive_artificial(
+    copyobj_filled_children, property_changer, artificial
+):
+    assert (
+        recursive_replace(copyobj_filled_children, property_changer).artificial()
+        == artificial
+    )
 
 
 """
