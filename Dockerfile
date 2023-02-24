@@ -24,4 +24,4 @@ COPY --chown=podman:podman test_podman.sh ./
 
 # RUN "python${PYTHON_VERSION}" functions.py
 
-ENTRYPOINT mypy functions.py; pytest
+ENTRYPOINT mypy functions.py; pytest -x
