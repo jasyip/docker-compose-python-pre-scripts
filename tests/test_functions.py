@@ -146,6 +146,32 @@ def set_same_group_owner_str(copyobj):
     )
 
 
+def set_diff_user_owner(copyobj):
+    return replace_namedtuple(
+        copyobj, default_user_owner=copyobj.path.stat().st_uid + 1
+    )
+
+
+def set_diff_user_owner_str(copyobj):
+    copyobj_uid = copyobj.path.stat().st_uid
+    for pw in pwd.getpwall():
+        if pw.pw_uid != copyobj_uid:
+            return replace_namedtuple(copyobj, default_user_owner=pw.pw_name)
+
+
+def set_diff_group_owner(copyobj):
+    return replace_namedtuple(
+        copyobj, default_group_owner=copyobj.path.stat().st_gid + 1
+    )
+
+
+def set_diff_group_owner_str(copyobj):
+    copyobj_gid = copyobj.path.stat().st_gid
+    for gr in grp.getgrall():
+        if gr.gr_gid != copyobj_gid:
+            return replace_namedtuple(copyobj, default_user_owner=gr.gr_name)
+
+
 @pytest.mark.parametrize(
     "property_changer,artificial",
     (
@@ -153,6 +179,10 @@ def set_same_group_owner_str(copyobj):
         (set_same_user_owner_str, False),
         (set_same_group_owner, False),
         (set_same_group_owner_str, False),
+        (set_diff_user_owner, True),
+        (set_diff_user_owner_str, True),
+        (set_diff_group_owner, True),
+        (set_diff_group_owner_str, True),
     ),
 )
 def test_copy_recursive_artificial(
