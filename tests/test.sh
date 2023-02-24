@@ -3,7 +3,7 @@
 : ${PYTHON_VERSIONS:="3.9 3.10 3.11"}
 
 SCRIPT_DIR="$(dirname "$(readlink -f "${0}")")"
-ROOT_DIR="$(dirname "${ROOT_DIR}")"
+ROOT_DIR="$(dirname "${SCRIPT_DIR}")"
 cd "${ROOT_DIR}"
 
 for version in ${PYTHON_VERSIONS}; do
