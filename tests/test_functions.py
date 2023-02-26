@@ -154,6 +154,8 @@ def test_copy_recursive_artificial(copyobj_filled_children):
     if copyobj_filled_children.children:
         diff_subdir = recursive_replace_subdir(copyobj_filled_children)
         assert diff_subdir.artificial()
+        assert _replace_namedtuple(diff_subdir, subdir=None).artificial()
+
 
 
 # functions that serve as edge cases and will be used by `_recursive_replace`
@@ -237,7 +239,7 @@ def test_copy_recursive_property_artificial(
     property_changer: Callable[[Copy], Copy],
     artificial: Union[bool, Callable[[Copy], bool]],
 ):
-    replaced = _recursive_replace(copyobj_filled_children, property_changer)
+    replaced: Copy = _recursive_replace(copyobj_filled_children, property_changer)
     if callable(artificial):
         artificial = artificial(replaced)
     assert replaced.artificial() == artificial
