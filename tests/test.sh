@@ -6,6 +6,8 @@ SCRIPT_DIR="$(dirname "$(readlink -f "${0}")")"
 ROOT_DIR="$(dirname "${SCRIPT_DIR}")"
 cd "${ROOT_DIR}"
 
+2> /dev/null cp -n -- "${XDG_CONFIG_HOME}/pudb/pudb.cfg" .
+
 for version in ${PYTHON_VERSIONS}; do
     podman build --build-arg "PYTHON_VERSION=${version}" -t "vps_python:${version}" . || exit
     podman run -t --rm \
