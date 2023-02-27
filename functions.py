@@ -185,26 +185,27 @@ class Copy(_Copy):
 
     def set_metadata(
         self,
-        parent_dir: Path,
         output_dir: Path,
+        parent_dir: Optional[Path] = None,
+        *,
         default_user_owner: Optional[int] = None,
         default_group_owner: Optional[int] = None,
         default_file_perms: Optional[str] = None,
         default_dir_perms: Optional[str] = None,
     ) -> None:
         """
-        First determines whether ``Copy`` object is artificial. If so,
-        it copies all files/directory to a temporary directory, then sets any desired metadata
-        (user/group owner, permissions) to appropriate files/directories in the
-        temporary directory relative to the original root path.
-
-        :param parent_dir: The parent directory that holds the root ``Copy`` object.
-            Recursive calls of this function hold this parameter constant.
-        :type parent_dir: ``Path``
+        Sets all desired metadata (user/group owner, permissions) to all appropriate
+        files/directories in the output directory relative to the original root path.
 
         :param output_dir: The output directory that represents the root ``Copy`` object.
             Recursive calls of this function hold this parameter constant.
         :type output_dir: ``Path``
+
+        :param parent_dir: The parent directory that holds the root ``Copy`` object. If
+            not provided, will default to the immediate parent directory of object's `path`.
+            Recursive calls of this function hold this parameter constant.
+        :type parent_dir: ``Optional[Path]``
+
 
         :param default_user_owner: Self-explanatory, see ``Copy.default_user_owner``
         :type default_user_owner: ``Optional[int]``
@@ -219,6 +220,8 @@ class Copy(_Copy):
         :type default_dir_perms: ``Optional[str]``
 
         """
+        if parent_dir is None:
+            parent_dir = self.path.parent
 
         relative_path: PurePath = self.path.relative_to(parent_dir)
         if self.subdir is not None:
@@ -226,8 +229,8 @@ class Copy(_Copy):
             sh_move(output_dir / relative_path, output_dir / self.subdir)
             relative_path = self.subdir / self.path.name
 
-        parent_dir = parent_dir / relative_path
-        output_dir = output_dir / relative_path
+        parent_dir /= relative_path
+        output_dir /= relative_path
 
         if self.default_user_owner is not None:
             default_user_owner = self.default_user_owner
@@ -272,12 +275,12 @@ class Copy(_Copy):
 
         for child in self.children:
             child.set_metadata(
-                parent_dir,
                 output_dir,
-                default_user_owner,
-                default_group_owner,
-                default_file_perms,
-                default_dir_perms,
+                parent_dir,
+                default_user_owner=default_user_owner,
+                default_group_owner=default_group_owner,
+                default_file_perms=default_file_perms,
+                default_dir_perms=default_dir_perms,
             )
 
 
@@ -295,7 +298,8 @@ def _get_vol_dirs(
 ) -> list[_VolDir]:
     """
     Returns a list of directories that can be directly copied to the Docker volume after
-    setting up desired file structure, metadata, etc.
+    copying file structures to temporary directories and setting up desired
+    file structures, metadata, etc. if necessary.
     """
     try:
         vol_dirs: list[_VolDir] = []
@@ -320,7 +324,7 @@ def _get_vol_dirs(
                         )
                         copytree(copyobj.path, output_dir / copyobj.path.name)
                         copyobj.set_metadata(
-                            copyobj.path.parent, output_dir, *args, **kwargs
+                            output_dir, *args, **kwargs
                         )
                 except:
                     shred_dir(holding_dir)

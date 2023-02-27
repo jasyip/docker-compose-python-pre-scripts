@@ -252,6 +252,19 @@ def test_copy_recursive_property_artificial(
         )
 
 
+def test_copy_custom_subdir_set_metadata(copyobj_filled_children, tmp_path):
+    # We are only testing custom subdir properties
+
+    copytree(copyobj_filled_children.path, tmp_path / copyobj_filled_children.path.name)
+
+    custom_subdirs: Copy = _replace_namedtuple(recursive_replace_subdir(copyobj_filled_children),
+                                              subdir=None)
+    custom_subdirs.set_metadata(tmp_path)
+    assert custom_subdirs.path.name == copyobj_filled_children.path.name
+    for custom_subdir_child, child in zip(custom_subdirs.children,
+                                          copyobj_filled_children.children):
+        assert custom_subdir_child.path.exists()
+
 """
 @parametrize("copyobj", ())
 def test_set_metadata(copyobj):
