@@ -23,7 +23,7 @@ COPY --chown=podman:podman pudb.cfg ./.config/pudb/
 
 # RUN "python${PYTHON_VERSION}" functions.py
 
-ENV PYTEST_ARGS="-x"
+ENV PYTEST_ARGS=
 ENV PUDB_ON_ERROR=0
 
 ENTRYPOINT ["sh", "entrypoint.sh"]
