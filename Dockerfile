@@ -18,11 +18,12 @@ WORKDIR /home/podman
 
 COPY --chown=podman:podman *.py ./
 COPY --chown=podman:podman tests ./tests
-COPY --chown=podman:podman test_podman.sh ./
+COPY --chown=podman:podman *.sh ./
 COPY --chown=podman:podman pudb.cfg ./.config/pudb/
 
 # RUN "python${PYTHON_VERSION}" functions.py
 
-# TODO: get pudb working like https://github.com/isaacbernat/docker-pudb
+ENV PYTEST_ARGS="-x"
+ENV PUDB_ON_ERROR=0
 
-ENTRYPOINT mypy functions.py; pytest -x --pdbcls pudb.debugger:Debugger --pdb --capture=no
+ENTRYPOINT ["sh", "entrypoint.sh"]

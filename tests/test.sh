@@ -10,7 +10,7 @@ cd "${ROOT_DIR}"
 
 for version in ${PYTHON_VERSIONS}; do
     podman build --build-arg "PYTHON_VERSION=${version}" -t "vps_python:${version}" . || exit
-    podman run -t --rm \
+    podman run -it -e PUDB_ON_ERROR=1 --rm \
             --user podman \
             --security-opt label=disable \
             --device /dev/fuse \
