@@ -37,15 +37,22 @@ config.read_dict(
     }
 )
 required_keys = {
-        "general" : {"python_versions", "image_name", "executable", "container_run_flags",
-                     "host_pudb_conf_dir"},
-        }
+    "general": {
+        "python_versions",
+        "image_name",
+        "executable",
+        "container_run_flags",
+        "host_pudb_conf_dir",
+    },
+}
 config.read(env_path)
 
 for section, required_keys_for_section in required_keys.items():
     for required_key in required_keys_for_section:
         if required_key not in config[section]:
-            raise ValueError(f"key '{required_key}' missing in configuration section [{section}]")
+            raise ValueError(
+                f"key '{required_key}' missing in configuration section [{section}]"
+            )
 
 
 for python_version in config["general"]["python_versions"].split():
