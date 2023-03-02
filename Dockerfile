@@ -14,16 +14,15 @@ RUN pip${PYTHON_VERSION} install --upgrade --no-cache-dir pytest mypy pudb
 
 RUN ["podman", "pull", "hello-world"]
 
+USER podman
 WORKDIR /home/podman
-
-COPY --chown=podman:podman *.py ./
-COPY --chown=podman:podman tests ./tests
-COPY --chown=podman:podman *.sh ./
-COPY --chown=podman:podman pudb.cfg ./.config/pudb/
-
-# RUN "python${PYTHON_VERSION}" functions.py
 
 ENV PYTEST_ARGS=
 ENV PUDB_ON_ERROR=0
+
+COPY --chown=podman functions.py ./
+COPY --chown=podman tests ./tests
+COPY --chown=podman entrypoint.sh ./
+COPY --chown=podman pudb.cfg ./.config/pudb/
 
 ENTRYPOINT ["sh", "entrypoint.sh"]
