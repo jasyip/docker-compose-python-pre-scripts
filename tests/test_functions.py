@@ -95,11 +95,11 @@ def _recursive_replace(copyobj: Copy, f: Callable[[Copy], Copy]) -> Copy:
     return _replace_namedtuple(f(copyobj), children=children)
 
 
-def recursive_replace_subdir(
+def _recursive_replace_subdir(
     copyobj: Copy, parent_dir: Optional[Path] = None, suffix: str = "~"
 ) -> Copy:
     children: Sequence[Copy] = tuple(
-        recursive_replace_subdir(child, copyobj.path, suffix)
+        _recursive_replace_subdir(child, copyobj.path, suffix)
         for child in copyobj.children
     )
     if parent_dir is None:
@@ -133,7 +133,7 @@ class TestCopy:
     def test_copy_recursive_artificial(self, copyobj_filled_children):
         assert not copyobj_filled_children.artificial()
         if copyobj_filled_children.children:
-            diff_subdir = recursive_replace_subdir(copyobj_filled_children)
+            diff_subdir = _recursive_replace_subdir(copyobj_filled_children)
             assert diff_subdir.artificial()
             assert _replace_namedtuple(diff_subdir, subdir=None).artificial()
 
