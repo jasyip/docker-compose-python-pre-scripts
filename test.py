@@ -53,7 +53,7 @@ for python_version in config["general"]["python_versions"].split():
 
     if config["container_only"].get("pudb_on_error") == "1":
         pudb_cfg = Path(config["general"]["host_pudb_conf_dir"]) / "pudb.cfg"
-        dest_pudb_cfg = SCRIPT_DIR / "pudb.cfg"
+        dest_pudb_cfg = SCRIPT_DIR / ".pudb.cfg"
         if pudb_cfg.is_file():
             copyfile(pudb_cfg, dest_pudb_cfg)
         elif not dest_pudb_cfg.is_file():

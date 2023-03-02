@@ -23,6 +23,6 @@ ENV PUDB_ON_ERROR=0
 COPY --chown=podman functions.py ./
 COPY --chown=podman tests ./tests
 COPY --chown=podman entrypoint.sh ./
-COPY --chown=podman pudb.cfg ./.config/pudb/
+COPY --chown=podman .pudb.cfg ./.config/pudb/pudb.cfg
 
 ENTRYPOINT ["sh", "entrypoint.sh"]
