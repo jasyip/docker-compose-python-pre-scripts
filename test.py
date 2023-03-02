@@ -58,8 +58,6 @@ for section, required_keys_for_section in required_keys.items():
             raise ValueError(
                 f"key '{required_key}' missing in configuration section [{section}]"
             )
-    del required_key
-del required_keys_for_section
 
 if config["container_only"].get("pudb_on_error") == "1":
     pudb_cfg: Path = Path(config["general"]["host_pudb_conf_dir"]) / "pudb.cfg"
@@ -95,7 +93,6 @@ for python_version in config["general"]["python_versions"].split():
     value: str
     for env_name, value in config["container_only"].items():
         container_run_flags.extend(("-e", f"""{env_name.upper()}={value}"""))
-    del env_name, value
 
     if "container_name" in config["general"]:
         container_run_flags.extend(("--name", config["general"]["container_name"]))
@@ -110,4 +107,3 @@ for python_version in config["general"]["python_versions"].split():
         check=True,
     )
     del image_name, container_run_flags
-del python_version
