@@ -40,11 +40,9 @@ def shred_dir(directory: PathRep, shred_options: Iterable[str] = tuple()) -> Non
     files_to_shred: list[str] = []
     for dirpath, _, files in os_walk(directory):  # type: ignore
         files_to_shred.extend(path_join(dirpath, file) for file in files)
-    del dirpath, files
 
     if files_to_shred:
         sp_run(("shred", "-f", "-u", *shred_options, "--", *files_to_shred), check=True)
-    del files_to_shred
     rmtree(directory)
 
 
@@ -233,7 +231,6 @@ class Copy(_Copy):
             relative_path = self.subdir / self.path.name
 
         output_dir /= relative_path
-        del relative_path
 
         if self.default_user_owner is not None:
             default_user_owner = self.default_user_owner
@@ -254,11 +251,9 @@ class Copy(_Copy):
                         os_chown(
                             path_join(dirpath, file), uid, gid, follow_symlinks=False
                         )
-                    del file
                 del dirpath, files
             else:
                 os_chown(output_dir, uid, gid, follow_symlinks=False)
-            del uid, gid
 
         if not (default_file_perms is None and default_dir_perms is None):
             if output_dir.is_dir():
@@ -273,10 +268,8 @@ class Copy(_Copy):
 
                 if default_file_perms is not None:
                     sp_run(("chmod", default_file_perms, "--", *file_list), check=True)
-                del file_list
                 if default_dir_perms is not None:
                     sp_run(("chmod", default_dir_perms, "--", *dir_list), check=True)
-                del dir_list
             elif default_file_perms is not None:
                 sp_run(("chmod", default_file_perms, "--", str(output_dir)), check=True)
 
@@ -289,7 +282,6 @@ class Copy(_Copy):
                 default_file_perms=default_file_perms,
                 default_dir_perms=default_dir_perms,
             )
-        del child
 
 
 class _VolDir(NamedTuple):
@@ -334,24 +326,18 @@ def _get_vol_dirs(
                         copyobj.set_metadata(
                             output_dir, *args, **kwargs
                         )
-                        del output_dir
-                    del copyobj
                 except:
                     shred_dir(holding_dir)
             else:
                 holding_dir = next(iter(parents))
-            del parents
 
             vol_dirs.append(_VolDir(vol, holding_dir, is_temp))
-            del is_temp, holding_dir
-        del vol, copyobjs
 
         return vol_dirs
     except:
         for _, vol_dir, is_temp in vol_dirs:
             if is_temp:
                 shred_dir(vol_dir)
-        del vol_dir, is_temp
         raise
 
 
@@ -376,7 +362,7 @@ def copy_to_volume(
     Extraneous arguments are passed to calls to ``Copy.set_metadata`` for each ``Copy`` object.
     """
 
-    vol_dirs: Collection[_VolDir] = _get_vol_dirs(volumes, *args, **kwargs)
+    vol_dirs = _get_vol_dirs(volumes, *args, **kwargs)
 
     try:
         container_name: str = str(uuid4())
@@ -412,22 +398,17 @@ def copy_to_volume(
                         )
                     )
                 )
-            del vol, vol_dir
 
             copy_error: int = 0
             for process in processes:
                 copy_error = max(copy_error, process.wait())
-            del process, processes
 
             if copy_error:
                 raise SubprocessError("docker copy function failed")
-            del copy_error
         finally:
             sp_run(("docker", "rm", container_name), check=True)
-            del container_name
 
     finally:
         for _, vol_dir, is_temp in vol_dirs:
             if is_temp:
                 shred_dir(vol_dir)
-        del vol_dir, is_temp, vol_dirs
