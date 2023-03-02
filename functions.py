@@ -362,7 +362,7 @@ def copy_to_volume(
     Extraneous arguments are passed to calls to ``Copy.set_metadata`` for each ``Copy`` object.
     """
 
-    vol_dirs = _get_vol_dirs(volumes, *args, **kwargs)
+    vol_dirs: Collection[_VolDir] = _get_vol_dirs(volumes, *args, **kwargs)
 
     try:
         container_name: str = str(uuid4())
