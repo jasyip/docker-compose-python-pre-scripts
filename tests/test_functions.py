@@ -19,29 +19,9 @@ import functions
 from functions import Copy
 
 
-@pytest.fixture(params=(Path(__file__).parent / "data").iterdir())
-def test_data_path(request):
-    """
-    Return all data test cases under the "data" folder
-    """
-    return request.param
 
 
-def test_shred_dir(test_data_path, tmp_path):
-    if not test_data_path.is_dir():
-        pytest.skip(f"{test_data_path=} is not a directory")
-    dest_path: Path = tmp_path / test_data_path.name
-    copytree(test_data_path, dest_path)
-
-    try:
-        functions.shred_dir(dest_path)
-        assert not dest_path.exists()
-    except:
-        rmtree(dest_path)
-        raise
-
-
-@pytest.fixture
+@pytest.fixture(scope="module")
 def root_copyobj(test_data_path):
     return Copy(test_data_path)
 
@@ -66,7 +46,7 @@ def _replace_namedtuple(nt: NamedTuple, **kwargs) -> NamedTuple:
     return constructor(*positional_only, **as_dict)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def copyobj_filled_children(root_copyobj):
     """
     Returns a `Copy` object whose children are also recursively-filled `Copy` objects that
@@ -135,135 +115,137 @@ def recursive_replace_subdir(
         children=children,
     )
 
+class TestCopy:
 
-def test_copy_simple_artificial(root_copyobj):
-    assert not root_copyobj.artificial()
+    def test_copy_simple_artificial(self, root_copyobj):
+        assert not root_copyobj.artificial()
 
-    diff_initial_subdir = _replace_namedtuple(root_copyobj, subdir=PurePath("a"))
-    assert not diff_initial_subdir.artificial()
+        diff_initial_subdir = _replace_namedtuple(root_copyobj, subdir=PurePath("a"))
+        assert not diff_initial_subdir.artificial()
 
-    diff_file_permissions = _replace_namedtuple(root_copyobj, default_file_perms="000")
-    assert diff_file_permissions.artificial()
+        diff_file_permissions = _replace_namedtuple(root_copyobj, default_file_perms="000")
+        assert diff_file_permissions.artificial()
 
-    diff_dir_permissions = _replace_namedtuple(root_copyobj, default_dir_perms="000")
-    assert diff_dir_permissions.artificial() == diff_dir_permissions.path.is_dir()
-
-
-def test_copy_recursive_artificial(copyobj_filled_children):
-    assert not copyobj_filled_children.artificial()
-    if copyobj_filled_children.children:
-        diff_subdir = recursive_replace_subdir(copyobj_filled_children)
-        assert diff_subdir.artificial()
-        assert _replace_namedtuple(diff_subdir, subdir=None).artificial()
+        diff_dir_permissions = _replace_namedtuple(root_copyobj, default_dir_perms="000")
+        assert diff_dir_permissions.artificial() == diff_dir_permissions.path.is_dir()
 
 
-
-# functions that serve as edge cases and will be used by `_recursive_replace`
-
-
-def set_same_user_owner(copyobj: Copy) -> Copy:
-    return _replace_namedtuple(copyobj, default_user_owner=copyobj.path.stat().st_uid)
-
-
-def set_same_user_owner_str(copyobj: Copy) -> Copy:
-    return _replace_namedtuple(
-        copyobj, default_user_owner=pwd.getpwuid(copyobj.path.stat().st_uid).pw_name
-    )
+    def test_copy_recursive_artificial(self, copyobj_filled_children):
+        assert not copyobj_filled_children.artificial()
+        if copyobj_filled_children.children:
+            diff_subdir = recursive_replace_subdir(copyobj_filled_children)
+            assert diff_subdir.artificial()
+            assert _replace_namedtuple(diff_subdir, subdir=None).artificial()
 
 
-def set_same_group_owner(copyobj: Copy) -> Copy:
-    return _replace_namedtuple(copyobj, default_group_owner=copyobj.path.stat().st_gid)
+
+    # functions that serve as edge cases and will be used by `_recursive_replace`
 
 
-def set_same_group_owner_str(copyobj: Copy) -> Copy:
-    return _replace_namedtuple(
-        copyobj, default_group_owner=grp.getgrgid(copyobj.path.stat().st_gid).gr_name
-    )
+    def set_same_user_owner(copyobj: Copy) -> Copy:
+        return _replace_namedtuple(copyobj, default_user_owner=copyobj.path.stat().st_uid)
 
 
-def set_diff_user_owner(copyobj: Copy) -> Copy:
-    return _replace_namedtuple(
-        copyobj, default_user_owner=copyobj.path.stat().st_uid + 1
-    )
-
-
-def set_diff_user_owner_str(copyobj: Copy) -> Copy:
-    copyobj_uid: int = copyobj.path.stat().st_uid
-    for pw in pwd.getpwall():
-        if pw.pw_uid != copyobj_uid:
-            return _replace_namedtuple(copyobj, default_user_owner=pw.pw_name)
-
-
-def set_diff_group_owner(copyobj: Copy) -> Copy:
-    return _replace_namedtuple(
-        copyobj, default_group_owner=copyobj.path.stat().st_gid + 1
-    )
-
-
-def set_diff_group_owner_str(copyobj: Copy) -> Copy:
-    copyobj_gid: int = copyobj.path.stat().st_gid
-    for gr in grp.getgrall():
-        if gr.gr_gid != copyobj_gid:
-            return _replace_namedtuple(copyobj, default_user_owner=gr.gr_name)
-
-
-def set_random_file_perms(copyobj: Copy) -> Copy:
-    return _replace_namedtuple(
-        copyobj, default_file_perms=f"{random.randrange(0o1000):03o}"
-    )
-
-
-def set_random_dir_perms(copyobj: Copy) -> Copy:
-    return _replace_namedtuple(
-        copyobj, default_file_perms=f"{random.randrange(0o1000):03o}"
-    )
-
-
-@pytest.mark.parametrize(
-    "property_changer,artificial",
-    (
-        (set_same_user_owner, False),
-        (set_same_user_owner_str, False),
-        (set_same_group_owner, False),
-        (set_same_group_owner_str, False),
-        (set_diff_user_owner, True),
-        (set_diff_user_owner_str, True),
-        (set_diff_group_owner, True),
-        (set_diff_group_owner_str, True),
-        (set_random_file_perms, True),
-        (set_random_dir_perms, lambda x: x.path.is_dir()),
-    ),
-)
-def test_copy_recursive_property_artificial(
-    copyobj_filled_children,
-    property_changer: Callable[[Copy], Copy],
-    artificial: Union[bool, Callable[[Copy], bool]],
-):
-    replaced: Copy = _recursive_replace(copyobj_filled_children, property_changer)
-    if callable(artificial):
-        artificial = artificial(replaced)
-    assert replaced.artificial() == artificial
-    if copyobj_filled_children.children:
-        assert (
-            _replace_namedtuple(
-                copyobj_filled_children, children=replaced.children
-            ).artificial()
-            == artificial
+    def set_same_user_owner_str(copyobj: Copy) -> Copy:
+        return _replace_namedtuple(
+            copyobj, default_user_owner=pwd.getpwuid(copyobj.path.stat().st_uid).pw_name
         )
 
 
-def test_copy_custom_subdir_set_metadata(copyobj_filled_children, tmp_path):
-    # We are only testing custom subdir properties
+    def set_same_group_owner(copyobj: Copy) -> Copy:
+        return _replace_namedtuple(copyobj, default_group_owner=copyobj.path.stat().st_gid)
 
-    copytree(copyobj_filled_children.path, tmp_path / copyobj_filled_children.path.name)
 
-    custom_subdirs: Copy = _replace_namedtuple(recursive_replace_subdir(copyobj_filled_children),
-                                              subdir=None)
-    custom_subdirs.set_metadata(tmp_path)
-    assert custom_subdirs.path.name == copyobj_filled_children.path.name
-    for custom_subdir_child, child in zip(custom_subdirs.children,
-                                          copyobj_filled_children.children):
-        assert custom_subdir_child.path.exists()
+    def set_same_group_owner_str(copyobj: Copy) -> Copy:
+        return _replace_namedtuple(
+            copyobj, default_group_owner=grp.getgrgid(copyobj.path.stat().st_gid).gr_name
+        )
+
+
+    def set_diff_user_owner(copyobj: Copy) -> Copy:
+        return _replace_namedtuple(
+            copyobj, default_user_owner=copyobj.path.stat().st_uid + 1
+        )
+
+
+    def set_diff_user_owner_str(copyobj: Copy) -> Copy:
+        copyobj_uid: int = copyobj.path.stat().st_uid
+        for pw in pwd.getpwall():
+            if pw.pw_uid != copyobj_uid:
+                return _replace_namedtuple(copyobj, default_user_owner=pw.pw_name)
+
+
+    def set_diff_group_owner(copyobj: Copy) -> Copy:
+        return _replace_namedtuple(
+            copyobj, default_group_owner=copyobj.path.stat().st_gid + 1
+        )
+
+
+    def set_diff_group_owner_str(copyobj: Copy) -> Copy:
+        copyobj_gid: int = copyobj.path.stat().st_gid
+        for gr in grp.getgrall():
+            if gr.gr_gid != copyobj_gid:
+                return _replace_namedtuple(copyobj, default_user_owner=gr.gr_name)
+
+
+    def set_random_file_perms(copyobj: Copy) -> Copy:
+        return _replace_namedtuple(
+            copyobj, default_file_perms=f"{random.randrange(0o1000):03o}"
+        )
+
+
+    def set_random_dir_perms(copyobj: Copy) -> Copy:
+        return _replace_namedtuple(
+            copyobj, default_file_perms=f"{random.randrange(0o1000):03o}"
+        )
+
+
+    @pytest.mark.parametrize(
+        "property_changer,artificial",
+        (
+            (set_same_user_owner, False),
+            (set_same_user_owner_str, False),
+            (set_same_group_owner, False),
+            (set_same_group_owner_str, False),
+            (set_diff_user_owner, True),
+            (set_diff_user_owner_str, True),
+            (set_diff_group_owner, True),
+            (set_diff_group_owner_str, True),
+            (set_random_file_perms, True),
+            (set_random_dir_perms, lambda x: x.path.is_dir()),
+        ),
+    )
+    def test_copy_recursive_property_artificial(
+                                                self,
+        copyobj_filled_children,
+        property_changer: Callable[[Copy], Copy],
+        artificial: Union[bool, Callable[[Copy], bool]],
+    ):
+        replaced: Copy = _recursive_replace(copyobj_filled_children, property_changer)
+        if callable(artificial):
+            artificial = artificial(replaced)
+        assert replaced.artificial() == artificial
+        if copyobj_filled_children.children:
+            assert (
+                _replace_namedtuple(
+                    copyobj_filled_children, children=replaced.children
+                ).artificial()
+                == artificial
+            )
+
+
+    def test_copy_custom_subdir_set_metadata(self, copyobj_filled_children, tmp_path):
+        # We are only testing custom subdir properties
+
+        copytree(copyobj_filled_children.path, tmp_path / copyobj_filled_children.path.name)
+
+        custom_subdirs: Copy = _replace_namedtuple(recursive_replace_subdir(copyobj_filled_children),
+                                                  subdir=None)
+        custom_subdirs.set_metadata(tmp_path)
+        assert custom_subdirs.path.name == copyobj_filled_children.path.name
+        for custom_subdir_child, child in zip(custom_subdirs.children,
+                                              copyobj_filled_children.children):
+            assert custom_subdir_child.path.exists()
 
 """
 @parametrize("copyobj", ())
