@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+from collections.abc import Collection
 from configparser import ConfigParser
 from pathlib import Path
 from shutil import copyfile
@@ -36,7 +37,7 @@ config.read_dict(
         },
     }
 )
-required_keys = {
+required_keys: dict[str, Collection[str]] = {
     "general": {
         "python_versions",
         "image_name",
@@ -46,27 +47,34 @@ required_keys = {
     },
 }
 config.read(env_path)
+del env_path
 
+section: str
+required_keys_for_section: Collection[str]
 for section, required_keys_for_section in required_keys.items():
+    required_key: str
     for required_key in required_keys_for_section:
         if required_key not in config[section]:
             raise ValueError(
                 f"key '{required_key}' missing in configuration section [{section}]"
             )
+    del required_key
+del required_keys_for_section
 
+if config["container_only"].get("pudb_on_error") == "1":
+    pudb_cfg: Path = Path(config["general"]["host_pudb_conf_dir"]) / "pudb.cfg"
+    dest_pudb_cfg: Path = SCRIPT_DIR / ".pudb.cfg"
+    if pudb_cfg.is_file():
+        copyfile(pudb_cfg, dest_pudb_cfg)
+    elif not dest_pudb_cfg.is_file():
+        # e044 is hardcoded magic value according to
+        # https://github.com/inducer/pudb/blob/cd27015ae203307cec09adf336cfe237d03cc076/pudb/debugger.py#L2503
+        dest_pudb_cfg.symlink_to("default_pudb.cfg")
+    del pudb_cfg, dest_pudb_cfg
 
+python_version: str
 for python_version in config["general"]["python_versions"].split():
     image_name: str = f"""{config["general"]["image_name"]}:{python_version}"""
-
-    if config["container_only"].get("pudb_on_error") == "1":
-        pudb_cfg = Path(config["general"]["host_pudb_conf_dir"]) / "pudb.cfg"
-        dest_pudb_cfg = SCRIPT_DIR / ".pudb.cfg"
-        if pudb_cfg.is_file():
-            copyfile(pudb_cfg, dest_pudb_cfg)
-        elif not dest_pudb_cfg.is_file():
-            # e044 is hardcoded magic value according to
-            # https://github.com/inducer/pudb/blob/cd27015ae203307cec09adf336cfe237d03cc076/pudb/debugger.py#L2503
-            dest_pudb_cfg.write_text("[pudb]\nseen_welcome = e044")
 
     sp_run(
         (
@@ -81,10 +89,13 @@ for python_version in config["general"]["python_versions"].split():
         check=True,
     )
 
-    container_run_flags: str = config["general"]["container_run_flags"].split()
+    container_run_flags: list[str] = config["general"]["container_run_flags"].split()
 
-    for k, v in config["container_only"].items():
-        container_run_flags.extend(("-e", f"""{k.upper()}={v}"""))
+    env_name: str
+    value: str
+    for env_name, value in config["container_only"].items():
+        container_run_flags.extend(("-e", f"""{env_name.upper()}={value}"""))
+    del env_name, value
 
     if "container_name" in config["general"]:
         container_run_flags.extend(("--name", config["general"]["container_name"]))
@@ -98,3 +109,5 @@ for python_version in config["general"]["python_versions"].split():
         ),
         check=True,
     )
+    del image_name, container_run_flags
+del python_version
