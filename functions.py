@@ -224,12 +224,12 @@ class Copy(_Copy):
             parent_dir = self.path.parent
 
         relative_path: PurePath = self.path.relative_to(parent_dir)
+        parent_dir /= relative_path
         if self.subdir is not None:
             (output_dir / self.subdir).mkdir(parents=True)
             sh_move(output_dir / relative_path, output_dir / self.subdir)
             relative_path = self.subdir / self.path.name
 
-        parent_dir /= relative_path
         output_dir /= relative_path
 
         if self.default_user_owner is not None:
