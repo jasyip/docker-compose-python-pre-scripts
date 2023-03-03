@@ -239,7 +239,7 @@ class TestCopy:
 
         copytree(copyobj_filled_children.path, tmp_path / copyobj_filled_children.path.name)
 
-        custom_subdirs: Copy = _replace_namedtuple(recursive_replace_subdir(copyobj_filled_children),
+        custom_subdirs: Copy = _replace_namedtuple(_recursive_replace_subdir(copyobj_filled_children),
                                                   subdir=None)
         custom_subdirs.set_metadata(tmp_path)
         assert custom_subdirs.path.name == copyobj_filled_children.path.name
