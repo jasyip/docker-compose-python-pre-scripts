@@ -1,6 +1,6 @@
 from quay.io/podman/stable
 
-ARG PYTHON_VERSION=3.9
+ARG PYTHON_VERSION=3
 
 RUN dnf -y --best install "python${PYTHON_VERSION}" && \
     dnf clean all
