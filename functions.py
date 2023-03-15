@@ -289,56 +289,56 @@ class _VolDir(NamedTuple):
     path: Path
     is_temp: bool
 
+    @staticmethod
+    def get_dirs(
+        volumes: Mapping[str, Collection[Copy]],
+        mkdtemp_opts: Mapping[str, Any] = {},
+        *args,
+        **kwargs,
+    ) -> list:
+        """
+        Returns a list of directories that can be directly copied to the Docker volume after
+        copying file structures to temporary directories and setting up desired
+        file structures, metadata, etc. if necessary.
+        """
+        try:
+            vol_dirs: list = []
+            for vol, copyobjs in volumes.items():
+                if len(copyobjs) == 0:
+                    continue
 
-def _get_vol_dirs(
-    volumes: Mapping[str, Collection[Copy]],
-    mkdtemp_opts: Mapping[str, Any] = {},
-    *args,
-    **kwargs,
-) -> list[_VolDir]:
-    """
-    Returns a list of directories that can be directly copied to the Docker volume after
-    copying file structures to temporary directories and setting up desired
-    file structures, metadata, etc. if necessary.
-    """
-    try:
-        vol_dirs: list[_VolDir] = []
-        for vol, copyobjs in volumes.items():
-            if len(copyobjs) == 0:
-                continue
+                parents: set[Path] = set(copyobj.path.parent for copyobj in copyobjs)
+                is_temp: bool = len(parents) > 1 or any(
+                    copyobj.artificial() for copyobj in copyobjs
+                )
 
-            parents: set[Path] = set(copyobj.path.parent for copyobj in copyobjs)
-            is_temp: bool = len(parents) > 1 or any(
-                copyobj.artificial() for copyobj in copyobjs
-            )
+                holding_dir: Path
+                if is_temp:
+                    holding_dir = Path(mkdtemp(**mkdtemp_opts))
+                    try:
+                        for copyobj in copyobjs:
+                            output_dir: Path = (
+                                holding_dir
+                                if copyobj.subdir is None
+                                else holding_dir / copyobj.subdir
+                            )
+                            copytree(copyobj.path, output_dir / copyobj.path.name)
+                            copyobj.set_metadata(
+                                output_dir, *args, **kwargs
+                            )
+                    except:
+                        shred_dir(holding_dir)
+                else:
+                    holding_dir = next(iter(parents))
 
-            holding_dir: Path
-            if is_temp:
-                holding_dir = Path(mkdtemp(**mkdtemp_opts))
-                try:
-                    for copyobj in copyobjs:
-                        output_dir: Path = (
-                            holding_dir
-                            if copyobj.subdir is None
-                            else holding_dir / copyobj.subdir
-                        )
-                        copytree(copyobj.path, output_dir / copyobj.path.name)
-                        copyobj.set_metadata(
-                            output_dir, *args, **kwargs
-                        )
-                except:
-                    shred_dir(holding_dir)
-            else:
-                holding_dir = next(iter(parents))
+                vol_dirs.append(_VolDir(vol, holding_dir, is_temp))
 
-            vol_dirs.append(_VolDir(vol, holding_dir, is_temp))
-
-        return vol_dirs
-    except:
-        for _, vol_dir, is_temp in vol_dirs:
-            if is_temp:
-                shred_dir(vol_dir)
-        raise
+            return vol_dirs
+        except:
+            for _, vol_dir, is_temp in vol_dirs:
+                if is_temp:
+                    shred_dir(vol_dir)
+            raise
 
 
 def copy_to_volume(
@@ -362,7 +362,7 @@ def copy_to_volume(
     Extraneous arguments are passed to calls to ``Copy.set_metadata`` for each ``Copy`` object.
     """
 
-    vol_dirs: Collection[_VolDir] = _get_vol_dirs(volumes, *args, **kwargs)
+    vol_dirs: Collection[_VolDir] = _VolDir.get_dirs(volumes, *args, **kwargs)
 
     try:
         container_name: str = str(uuid4())
