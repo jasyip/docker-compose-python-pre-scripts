@@ -39,7 +39,7 @@ config.read_dict(
 )
 required_keys: dict[str, Collection[str]] = {
     "general": {
-        "python_versions",
+        "python_packages",
         "image_name",
         "executable",
         "container_run_flags",
@@ -70,16 +70,16 @@ if config["container_only"].get("pudb_on_error") == "1":
         dest_pudb_cfg.symlink_to("default_pudb.cfg")
     del pudb_cfg, dest_pudb_cfg
 
-python_version: str
-for python_version in config["general"]["python_versions"].split():
-    image_name: str = f"""{config["general"]["image_name"]}:{python_version}"""
+python_package: str
+for python_package in config["general"]["python_packages"].split():
+    image_name: str = f"""{config["general"]["image_name"]}:{python_package}"""
 
     sp_run(
         (
             config["general"]["executable"],
             "build",
             "--build-arg",
-            f"PYTHON_VERSION={python_version}",
+            f"PYTHON_PACKAGE={python_package}",
             "-t",
             image_name,
             str(SCRIPT_DIR),
