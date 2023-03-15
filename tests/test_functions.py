@@ -1,3 +1,4 @@
+import filecmp
 import grp
 import inspect
 import os
@@ -150,7 +151,7 @@ class TestCopy:
 
     # functions that serve as edge cases and will be used by `_recursive_replace`
 
-    class CopyMetadataModifiers(SimpleNamespace):
+    class CopyMetadataModifiers:
         def set_same_user_owner(copyobj: Copy) -> Copy:
             return _replace_namedtuple(
                 copyobj, default_user_owner=copyobj.path.stat().st_uid
@@ -205,30 +206,12 @@ class TestCopy:
                 copyobj, default_file_perms=f"{random.randrange(0o1000):03o}"
             )
 
-    """
-    @pytest.mark.parametrize(
-        "property_changer,artificial",
-        (
-            (set_same_user_owner, False),
-            (set_same_user_owner_str, False),
-            (set_same_group_owner, False),
-            (set_same_group_owner_str, False),
-            (set_diff_user_owner, True),
-            (set_diff_user_owner_str, True),
-            (set_diff_group_owner, True),
-            (set_diff_group_owner_str, True),
-            (set_random_file_perms, True),
-            (set_random_dir_perms, lambda x: x.path.is_dir()),
-        ),
-    )
-    """
-
     @pytest.mark.parametrize(
         "property_changer,artificial",
         ChainMap(
             {
                 method: re.search(
-                    r"(?:^|[^a-z0-9])same(?:$|[^a-z0-9])", method_name, re.I
+                    r"(?:^|[^a-z0-9])(same)(?:$|[^a-z0-9])", method_name, re.I
                 )
                 is None
                 for method_name, method in vars(CopyMetadataModifiers).items()
@@ -266,26 +249,24 @@ class TestCopy:
 
         assert custom_subdirs.path.name == copyobj_filled_children.path.name
 
-        def check_output_path_exists(copyobj, parent_dir, output_dir):
-            relative_path = copyobj.path.relative_to(parent_dir)
-            parent_dir /= relative_path
-            if copyobj.subdir is not None:
-                relative_path = copyobj.subdir / copyobj.path.name
-            output_dir /= relative_path
-            assert parent_dir.exists()
-            assert output_dir.exists()
-            for child in copyobj.children:
-                check_output_path_exists(child, parent_dir, output_dir)
+        # https://stackoverflow.com/a/6681395
+        def equal_trees(dir1, dir2):
+            dirs_cmp = filecmp.dircmp(dir1, dir2)
+            if dirs_cmp.left_only or dirs_cmp.right_only or dirs_cmp.funny_files:
+                return False
 
-        check_output_path_exists(custom_subdirs, custom_subdirs.path.parent, tmp_path)
+            if any(
+                filecmp.cmpfiles(dir1, dir2, dirs_cmp.common_files, shallow=False)[1:]
+            ):
+                return False
 
-    # @pytest.mark.parametrize("copyobj_at_tmp", ("copyobj_filled_children",), indirect=True)
-    # def test_copy_set_metadata_owners(self, copyobj_at_tmp):
-    #     pass
+            for common_dir in dirs_cmp.common_dirs:
+                if not are_dir_trees_equal(dir1 / common_dir, dir2 / common_dir):
+                    return False
+            return True
 
-    # @pytest.mark.parametrize("copyobj_at_tmp", ((copyobj_filled_children,),), indirect=True)
-    # def test_copy_recursive_set_metadata_owners(self, copyobj_filled_children_at_tmp, tmp_path):
-    #     pass
+        org_root_path = custom_subdirs.path.relative_to(Path(__file__).parent / "data")
+        equal_trees(tmp_path, Path(__file__).parent / "custom_subdirs" / org_root_path)
 
 
 """
