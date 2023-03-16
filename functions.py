@@ -323,9 +323,7 @@ class _VolDir(NamedTuple):
                                 else holding_dir / copyobj.subdir
                             )
                             copytree(copyobj.path, output_dir / copyobj.path.name)
-                            copyobj.set_metadata(
-                                output_dir, *args, **kwargs
-                            )
+                            copyobj.set_metadata(output_dir, *args, **kwargs)
                     except:
                         shred_dir(holding_dir)
                 else:

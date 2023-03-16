@@ -71,10 +71,14 @@ def test_copy_simple_artificial(root_copyobj):
     diff_initial_subdir = utils.replace_namedtuple(root_copyobj, subdir=PurePath("a"))
     assert not diff_initial_subdir.artificial()
 
-    diff_file_permissions = utils.replace_namedtuple(root_copyobj, default_file_perms="000")
+    diff_file_permissions = utils.replace_namedtuple(
+        root_copyobj, default_file_perms="000"
+    )
     assert diff_file_permissions.artificial()
 
-    diff_dir_permissions = utils.replace_namedtuple(root_copyobj, default_dir_perms="000")
+    diff_dir_permissions = utils.replace_namedtuple(
+        root_copyobj, default_dir_perms="000"
+    )
     assert diff_dir_permissions.artificial() == diff_dir_permissions.path.is_dir()
 
 

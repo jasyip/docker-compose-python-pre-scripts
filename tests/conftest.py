@@ -10,6 +10,7 @@ sys.path.append(str(PurePath(__file__).parents[1]))
 
 from functions import Copy
 
+
 @pytest.fixture(scope="module", params=(Path(__file__).parent / "data").iterdir())
 def test_data_path(request):
     """
