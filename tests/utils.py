@@ -1,36 +1,39 @@
+import dataclasses
 import filecmp
 import inspect
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from inspect import Parameter
 from pathlib import Path, PurePath
 from shutil import copy as sh_copy
 from shutil import copytree
-from typing import Any, NamedTuple
+from typing import Any, Final
 
 sys.path.append(str(PurePath(__file__).parents[1]))
 
 from functions import Copy
 
 
-def replace_namedtuple(nt: NamedTuple, **kwargs) -> NamedTuple:
+def replace_dataclass(dc, **kwargs):
     """
-    An alternative to `namedtuple._replace` that invokes `namedtuple.__new__` code behavior
+    An alternative to `dataclasses.replace` that also takes
+    positonal-only `__init__` arguments into account
     """
-    as_dict: dict[str, Any] = nt._asdict()
-    positional_only: list[Any] = []
+    as_dict: Final[Mapping[str, Any]] = dataclasses.asdict(dc)
+    positional_only: Final[list[Any]] = []
 
     for k, v in kwargs.items():
         if k in as_dict:
             as_dict[k] = v
 
-    constructor: Callable = type(nt)
+    constructor: Callable = type(dc)
 
     for name, param in inspect.signature(constructor).parameters.items():
         if param.kind == Parameter.POSITIONAL_ONLY:
             positional_only.append(as_dict.pop(name))
 
-    return constructor(*positional_only, **as_dict)
+    output = constructor(*positional_only, **as_dict)
+    return output
 
 
 def copy_to(copyobj: Copy, output_dir: Path) -> None:

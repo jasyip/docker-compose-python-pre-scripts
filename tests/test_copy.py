@@ -1,17 +1,17 @@
+import dataclasses
 import grp
 import pwd
 import random
 import re
 import sys
 from collections import ChainMap
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from pathlib import Path, PurePath
 from shutil import rmtree
 from typing import Optional, Union
 from warnings import warn
 
 import pytest
-
 import utils
 
 sys.path.append(str(PurePath(__file__).parents[1]))
@@ -28,35 +28,35 @@ def _recursive_property(copyobj: Copy, **kwargs) -> Copy:
     elif "children" in kwargs:
         raise ValueError
 
-    children: Sequence[Copy] = tuple(
+    children: frozenset[Copy] = frozenset(
         _recursive_property(child, **kwargs) for child in copyobj.children
     )
-    return utils.replace_namedtuple(copyobj, children=children, **kwargs)
+    return utils.replace_dataclass(copyobj, children=children, **kwargs)
 
 
 def _recursive_replace(copyobj: Copy, f: Callable[[Copy], Copy]) -> Copy:
     """
     Recursively transforms each `Copy` object through provided unary function
     """
-    children: Sequence[Copy] = tuple(
+    children: frozenset[Copy] = frozenset(
         _recursive_replace(child, f) for child in copyobj.children
     )
-    return utils.replace_namedtuple(f(copyobj), children=children)
+    return utils.replace_dataclass(f(copyobj), children=children)
 
 
 def _recursive_replace_subdir(
     copyobj: Copy, parent_dir: Optional[Path] = None, suffix: str = "~"
 ) -> Copy:
-    children: Sequence[Copy] = tuple(
+    children: frozenset[Copy] = frozenset(
         _recursive_replace_subdir(child, copyobj.path, suffix)
         for child in copyobj.children
     )
     if parent_dir is None:
-        return utils.replace_namedtuple(
+        return utils.replace_dataclass(
             copyobj, subdir=copyobj.path.name + suffix, children=children
         )
 
-    return utils.replace_namedtuple(
+    return utils.replace_dataclass(
         copyobj,
         subdir=copyobj.path.relative_to(parent_dir).with_name(
             copyobj.path.name + suffix
@@ -68,15 +68,15 @@ def _recursive_replace_subdir(
 def test_copy_simple_artificial(root_copyobj):
     assert not root_copyobj.artificial()
 
-    diff_initial_subdir = utils.replace_namedtuple(root_copyobj, subdir=PurePath("a"))
+    diff_initial_subdir = utils.replace_dataclass(root_copyobj, subdir=PurePath("a"))
     assert not diff_initial_subdir.artificial()
 
-    diff_file_permissions = utils.replace_namedtuple(
+    diff_file_permissions = utils.replace_dataclass(
         root_copyobj, default_file_perms="000"
     )
     assert diff_file_permissions.artificial()
 
-    diff_dir_permissions = utils.replace_namedtuple(
+    diff_dir_permissions = utils.replace_dataclass(
         root_copyobj, default_dir_perms="000"
     )
     assert diff_dir_permissions.artificial() == diff_dir_permissions.path.is_dir()
@@ -87,7 +87,7 @@ def test_copy_recursive_artificial(copyobj_filled_children):
     if copyobj_filled_children.children:
         diff_subdir = _recursive_replace_subdir(copyobj_filled_children)
         assert diff_subdir.artificial()
-        assert utils.replace_namedtuple(diff_subdir, subdir=None).artificial()
+        assert utils.replace_dataclass(diff_subdir, subdir=None).artificial()
 
 
 # functions that serve as edge cases and will be used by `_recursive_replace`
@@ -95,29 +95,29 @@ def test_copy_recursive_artificial(copyobj_filled_children):
 
 class CopyMetadataModifiers:
     def set_same_user_owner(copyobj: Copy) -> Copy:
-        return utils.replace_namedtuple(
+        return utils.replace_dataclass(
             copyobj, default_user_owner=copyobj.path.stat().st_uid
         )
 
     def set_same_user_owner_str(copyobj: Copy) -> Copy:
-        return utils.replace_namedtuple(
+        return utils.replace_dataclass(
             copyobj,
             default_user_owner=pwd.getpwuid(copyobj.path.stat().st_uid).pw_name,
         )
 
     def set_same_group_owner(copyobj: Copy) -> Copy:
-        return utils.replace_namedtuple(
+        return utils.replace_dataclass(
             copyobj, default_group_owner=copyobj.path.stat().st_gid
         )
 
     def set_same_group_owner_str(copyobj: Copy) -> Copy:
-        return utils.replace_namedtuple(
+        return utils.replace_dataclass(
             copyobj,
             default_group_owner=grp.getgrgid(copyobj.path.stat().st_gid).gr_name,
         )
 
     def set_diff_user_owner(copyobj: Copy) -> Copy:
-        return utils.replace_namedtuple(
+        return utils.replace_dataclass(
             copyobj, default_user_owner=copyobj.path.stat().st_uid + 1
         )
 
@@ -125,10 +125,10 @@ class CopyMetadataModifiers:
         copyobj_uid: int = copyobj.path.stat().st_uid
         for pw in pwd.getpwall():
             if pw.pw_uid != copyobj_uid:
-                return utils.replace_namedtuple(copyobj, default_user_owner=pw.pw_name)
+                return utils.replace_dataclass(copyobj, default_user_owner=pw.pw_name)
 
     def set_diff_group_owner(copyobj: Copy) -> Copy:
-        return utils.replace_namedtuple(
+        return utils.replace_dataclass(
             copyobj, default_group_owner=copyobj.path.stat().st_gid + 1
         )
 
@@ -136,15 +136,15 @@ class CopyMetadataModifiers:
         copyobj_gid: int = copyobj.path.stat().st_gid
         for gr in grp.getgrall():
             if gr.gr_gid != copyobj_gid:
-                return utils.replace_namedtuple(copyobj, default_user_owner=gr.gr_name)
+                return utils.replace_dataclass(copyobj, default_user_owner=gr.gr_name)
 
     def set_random_file_perms(copyobj: Copy) -> Copy:
-        return utils.replace_namedtuple(
+        return utils.replace_dataclass(
             copyobj, default_file_perms=f"{random.randrange(0o1000):03o}"
         )
 
     def set_random_dir_perms(copyobj: Copy) -> Copy:
-        return utils.replace_namedtuple(
+        return utils.replace_dataclass(
             copyobj, default_file_perms=f"{random.randrange(0o1000):03o}"
         )
 
@@ -174,7 +174,7 @@ def test_copy_recursive_property_artificial(
     assert replaced.artificial() == artificial
     if copyobj_filled_children.children:
         assert (
-            utils.replace_namedtuple(
+            utils.replace_dataclass(
                 copyobj_filled_children, children=replaced.children
             ).artificial()
             == artificial
@@ -185,7 +185,7 @@ def test_copy_custom_subdir_set_metadata(copyobj_filled_children, tmp_path):
     # We are only testing custom subdir properties
     utils.copy_to(copyobj_filled_children, tmp_path)
 
-    custom_subdirs: Copy = utils.replace_namedtuple(
+    custom_subdirs: Copy = utils.replace_dataclass(
         _recursive_replace_subdir(copyobj_filled_children), subdir=None
     )
     custom_subdirs.set_metadata(tmp_path)

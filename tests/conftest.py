@@ -1,9 +1,7 @@
 import sys
-from collections.abc import Sequence
 from pathlib import Path, PurePath
 
 import pytest
-
 import utils
 
 sys.path.append(str(PurePath(__file__).parents[1]))
@@ -37,12 +35,12 @@ def copyobj_filled_children(root_copyobj):
                 pytest.skip(f"{copyobj} is just a simple file")
             return copyobj
 
-        children: Sequence[Copy] = tuple(
+        children: frozenset[Copy] = frozenset(
             map(
                 filled_children,
                 (Copy(path, *args, **kwargs) for path in copyobj.path.iterdir()),
             )
         )
-        return utils.replace_namedtuple(copyobj, children=children)
+        return utils.replace_dataclass(copyobj, children=children)
 
     return filled_children(root_copyobj)

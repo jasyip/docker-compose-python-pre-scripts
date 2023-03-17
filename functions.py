@@ -1,4 +1,5 @@
-from collections.abc import Collection, Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping, Set
+from dataclasses import dataclass, field
 from grp import getgrnam
 from itertools import chain
 from os import PathLike
@@ -14,14 +15,13 @@ from shutil import rmtree
 from subprocess import Popen, SubprocessError
 from subprocess import run as sp_run
 from tempfile import mkdtemp
-from typing import Any, NamedTuple, Optional, Union
+from typing import Any, Final, NamedTuple, Optional, Union
 from uuid import uuid4
 
-if tuple(map(int, python_version_tuple())) >= (3, 10):
-    from typing import TypeAlias  # type: ignore
+from typing_extensions import Self, TypeAlias
 
-    PathRep: TypeAlias  # type: ignore
-PathRep = Union[str, PathLike]
+_PYTHON_VERSION = tuple(map(int, python_version_tuple()))
+PathRep: TypeAlias = Union[str, PathLike]
 
 
 def shred_dir(directory: PathRep, shred_options: Iterable[str] = tuple()) -> None:
@@ -37,7 +37,7 @@ def shred_dir(directory: PathRep, shred_options: Iterable[str] = tuple()) -> Non
     :type shred_options: ``Iterable[str]``
     """
 
-    files_to_shred: list[str] = []
+    files_to_shred: Final[list[str]] = []
     for dirpath, _, files in os_walk(directory):  # type: ignore
         files_to_shred.extend(path_join(dirpath, file) for file in files)
 
@@ -46,17 +46,14 @@ def shred_dir(directory: PathRep, shred_options: Iterable[str] = tuple()) -> Non
     rmtree(directory)
 
 
-class _Copy(NamedTuple):
-    path: Path
-    children: Collection["Copy"]  # type: ignore
-    subdir: Optional[PurePath]
-    default_user_owner: Optional[int]
-    default_group_owner: Optional[int]
-    default_file_perms: Optional[str]
-    default_dir_perms: Optional[str]
+def _kw_only_field(*args, **kwargs):
+    return field(
+        *args, **kwargs, **({"kw_only": True} if _PYTHON_VERSION >= (3, 10) else {})
+    )
 
 
-class Copy(_Copy):
+@dataclass(init=False, frozen=True)
+class Copy:
     """
     An immutable object that represents a path on the host file system to be copied to
     (a subdirectory of) a named Docker volume.
@@ -68,7 +65,7 @@ class Copy(_Copy):
     :param children: additional paths or ``Copy`` objects that are children of this ``Copy`` object.
         When children are copied to the Docker container, their metadata will inherit their
         parents' default metadata unless overriden.
-    :type children: ``Collection[Copy]``
+    :type children: ``Set[Copy]``
 
     :param subdir: optional subdirectory of the named Docker volume to be the copy destination
     :type subdir: ``Optional[str | PathLike]``
@@ -97,11 +94,19 @@ class Copy(_Copy):
 
     """
 
-    def __new__(
-        cls,
+    path: Path
+    children: frozenset["Copy"] = frozenset()  # type: ignore
+    subdir: Optional[PurePath] = None
+    default_user_owner: Optional[int] = _kw_only_field(default=None, compare=False)
+    default_group_owner: Optional[int] = _kw_only_field(default=None, compare=False)
+    default_file_perms: Optional[str] = _kw_only_field(default=None, compare=False)
+    default_dir_perms: Optional[str] = _kw_only_field(default=None, compare=False)
+
+    def __init__(
+        self: Self,
         path: PathRep,
         /,
-        children: Collection["Copy"] = tuple(),
+        children: frozenset["Copy"] = frozenset(),
         subdir: Optional[PathRep] = None,
         *,
         default_user_owner: Optional[Union[int, str]] = None,
@@ -135,15 +140,40 @@ class Copy(_Copy):
         if isinstance(default_group_owner, str):
             default_group_owner = getgrnam(default_group_owner).gr_gid
 
-        return super().__new__(
-            cls,
-            path,
-            children,
-            subdir,
-            default_user_owner,
-            default_group_owner,
-            default_file_perms,
-            default_dir_perms,
+        object.__setattr__(self, "path", path)
+        object.__setattr__(self, "children", children)
+        object.__setattr__(self, "subdir", subdir)
+        object.__setattr__(self, "default_user_owner", default_user_owner)
+        object.__setattr__(self, "default_group_owner", default_group_owner)
+        object.__setattr__(self, "default_file_perms", default_file_perms)
+        object.__setattr__(self, "default_dir_perms", default_dir_perms)
+
+    @classmethod
+    def in_(
+        cls,
+        directory: Union[PathRep, "Copy"],
+        /,
+        subdir: Optional[PathRep] = None,
+        *,
+        default_user_owner: Optional[Union[int, str]] = None,
+        default_group_owner: Optional[Union[int, str]] = None,
+        default_file_perms: Optional[str] = None,
+        default_dir_perms: Optional[str] = None,
+    ) -> frozenset[Self]:
+        as_path: Final[Path] = (
+            directory.path if isinstance(directory, Copy) else Path(directory)
+        )
+
+        return frozenset(
+            cls(
+                child,
+                subdir=subdir,
+                default_user_owner=default_user_owner,
+                default_group_owner=default_group_owner,
+                default_file_perms=default_file_perms,
+                default_dir_perms=default_dir_perms,
+            )
+            for child in as_path.iterdir()
         )
 
     def _changes_user_owner(self) -> bool:
@@ -242,8 +272,8 @@ class Copy(_Copy):
             default_dir_perms = self.default_dir_perms
 
         if not (default_user_owner is None and default_group_owner is None):
-            uid: int = -1 if default_user_owner is None else default_user_owner
-            gid: int = -1 if default_group_owner is None else default_group_owner
+            uid: Final[int] = -1 if default_user_owner is None else default_user_owner
+            gid: Final[int] = -1 if default_group_owner is None else default_group_owner
             if output_dir.is_dir():
                 for dirpath, _, files in os_walk(output_dir):
                     os_chown(dirpath, uid, gid, follow_symlinks=False)
@@ -257,8 +287,8 @@ class Copy(_Copy):
 
         if not (default_file_perms is None and default_dir_perms is None):
             if output_dir.is_dir():
-                file_list: list[str] = []
-                dir_list: list[str] = []
+                file_list: Final[list[str]] = []
+                dir_list: Final[list[str]] = []
                 for dirpath, _, files in os_walk(output_dir):
                     if default_file_perms is not None:
                         file_list.extend(path_join(dirpath, file) for file in files)
@@ -287,27 +317,30 @@ class Copy(_Copy):
 class _VolDir(NamedTuple):
     name: str
     path: Path
-    is_temp: bool
+    is_temp: bool = field(compare=False)
 
     @staticmethod
     def get_dirs(
-        volumes: Mapping[str, Collection[Copy]],
+        cls,
+        volumes: Mapping[str, Set[Copy]],
         mkdtemp_opts: Mapping[str, Any] = {},
         *args,
         **kwargs,
-    ) -> list:
+    ) -> Set["_VolDir"]:
         """
         Returns a list of directories that can be directly copied to the Docker volume after
         copying file structures to temporary directories and setting up desired
         file structures, metadata, etc. if necessary.
         """
+        vol_dirs: Final[set["_VolDir"]] = set()
         try:
-            vol_dirs: list = []
             for vol, copyobjs in volumes.items():
                 if len(copyobjs) == 0:
                     continue
 
-                parents: set[Path] = set(copyobj.path.parent for copyobj in copyobjs)
+                parents: frozenset[Path] = frozenset(
+                    copyobj.path.parent for copyobj in copyobjs
+                )
                 is_temp: bool = len(parents) > 1 or any(
                     copyobj.artificial() for copyobj in copyobjs
                 )
@@ -329,7 +362,7 @@ class _VolDir(NamedTuple):
                 else:
                     holding_dir = next(iter(parents))
 
-                vol_dirs.append(_VolDir(vol, holding_dir, is_temp))
+                vol_dirs.add(cls(vol, holding_dir, is_temp))
 
             return vol_dirs
         except:
@@ -340,7 +373,7 @@ class _VolDir(NamedTuple):
 
 
 def copy_to_volume(
-    volumes: Mapping[str, Collection[Copy]],
+    volumes: Mapping[str, Union[PathLike, Copy, Set[Union[PathLike, Copy]]]],
     image: str = "hello-world",
     *args,
     **kwargs,
@@ -350,8 +383,9 @@ def copy_to_volume(
     that will be copied to their corresponding volume while preserving file structure and
     respecting desired metadata.
 
-    :param volumes: Mapping from Docker volume name to non-empty collection of ``Copy`` objects.
-    :type volumes: ``Mapping[str, Collection[Copy]``
+    :param volumes: Mapping from Docker volume name to a single or non-empty collection of
+        paths as strings or``Path``s or ``Copy`` objects.
+    :type volumes: ``Mapping[str, Union[PathLike, Copy, Collection[Union[PathLike, Copy]]``
 
     :param image: Docker image to use, uses ``"hello-world"`` by default. ``busybox:musl``
         is not a bad choice if some core utilities are needed.
@@ -359,6 +393,16 @@ def copy_to_volume(
 
     Extraneous arguments are passed to calls to ``Copy.set_metadata`` for each ``Copy`` object.
     """
+
+    volumes_tmp: Final[dict[str, frozenset[Copy]]] = {}
+
+    for volume_name, paths in volumes.items():
+        if isinstance(paths, (PathLike, Copy)):
+            paths = (paths,)  # type: ignore[assignment]
+        volumes_tmp[volume_name] = frozenset(
+            path if isinstance(path, Copy) else Copy(path) for path in paths  # type: ignore[union-attr]
+        )
+    volumes = volumes_tmp
 
     vol_dirs: Collection[_VolDir] = _VolDir.get_dirs(volumes, *args, **kwargs)
 
