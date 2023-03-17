@@ -18,10 +18,14 @@ from tempfile import mkdtemp
 from typing import Any, Final, NamedTuple, Optional, Union
 from uuid import uuid4
 
-from typing_extensions import Self, TypeAlias
 
 _PYTHON_VERSION = tuple(map(int, python_version_tuple()))
-PathRep: TypeAlias = Union[str, PathLike]
+if _PYTHON_VERSION >= (3, 10):
+    from typing import TypeAlias  # type: ignore[misc,attr-defined]
+
+    PathRep: TypeAlias  # type: ignore[valid-type]
+
+PathRep = Union[str, PathLike]
 
 
 def shred_dir(directory: PathRep, shred_options: Iterable[str] = tuple()) -> None:
@@ -103,7 +107,7 @@ class Copy:
     default_dir_perms: Optional[str] = _kw_only_field(default=None, compare=False)
 
     def __init__(
-        self: Self,
+        self,
         path: PathRep,
         /,
         children: frozenset["Copy"] = frozenset(),
@@ -159,7 +163,7 @@ class Copy:
         default_group_owner: Optional[Union[int, str]] = None,
         default_file_perms: Optional[str] = None,
         default_dir_perms: Optional[str] = None,
-    ) -> frozenset[Self]:
+    ) -> frozenset["Copy"]:
         as_path: Final[Path] = (
             directory.path if isinstance(directory, Copy) else Path(directory)
         )
