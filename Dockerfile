@@ -21,9 +21,9 @@ WORKDIR /home/podman
 ENV PYTEST_ARGS=
 ENV PUDB_ON_ERROR=0
 
+COPY --chown=podman .pudb.cfg ./.config/pudb/pudb.cfg
+COPY --chown=podman entrypoint.sh ./
 COPY --chown=podman functions.py ./
 COPY --chown=podman tests ./tests
-COPY --chown=podman entrypoint.sh ./
-COPY --chown=podman .pudb.cfg ./.config/pudb/pudb.cfg
 
 ENTRYPOINT ["sh", "entrypoint.sh"]
