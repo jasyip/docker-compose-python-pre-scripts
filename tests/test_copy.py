@@ -1,5 +1,6 @@
 import dataclasses
 import grp
+import os
 import pwd
 import random
 import re
@@ -88,6 +89,14 @@ def test_copy_recursive_artificial(copyobj_filled_children):
         diff_subdir = _recursive_replace_subdir(copyobj_filled_children)
         assert diff_subdir.artificial()
         assert utils.replace_dataclass(diff_subdir, subdir=None).artificial()
+
+
+def test_copy_in(root_copyobj):
+    if root_copyobj.path.is_dir():
+        generated_children = Copy.in_(root_copyobj)
+        assert len(generated_children) == len(os.listdir(root_copyobj.path))
+    else:
+        pytest.raises(NotADirectoryError, Copy.in_, root_copyobj)
 
 
 # functions that serve as edge cases and will be used by `_recursive_replace`
