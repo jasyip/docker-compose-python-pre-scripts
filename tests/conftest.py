@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path, PurePath
+from typing import Final
 
 import pytest
 import utils
@@ -9,7 +10,7 @@ sys.path.append(str(PurePath(__file__).parents[1]))
 from functions import Copy
 
 
-@pytest.fixture(scope="module", params=(Path(__file__).parent / "data").iterdir())
+@pytest.fixture(scope="module", params=utils.DATA_DIRS)
 def test_data_path(request):
     """
     Return all data test cases under the "data" folder

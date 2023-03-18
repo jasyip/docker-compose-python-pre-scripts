@@ -4,7 +4,6 @@ import os
 import pwd
 import random
 import re
-import sys
 from collections import ChainMap
 from collections.abc import Callable
 from pathlib import Path, PurePath
@@ -14,8 +13,6 @@ from warnings import warn
 
 import pytest
 import utils
-
-sys.path.append(str(PurePath(__file__).parents[1]))
 
 from functions import Copy
 

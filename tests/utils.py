@@ -13,6 +13,7 @@ sys.path.append(str(PurePath(__file__).parents[1]))
 
 from functions import Copy
 
+DATA_DIRS: Final[tuple[Path]] = tuple((Path(__file__).parent / "data").iterdir())
 
 def replace_dataclass(dc, **kwargs):
     """
