@@ -411,7 +411,7 @@ def copy_to_volume(
     vol_dirs: Collection[_VolDir] = _VolDir.get_dirs(volumes, *args, **kwargs)
 
     try:
-        container_name: str = str(uuid4())
+        container_name: Final[str] = str(uuid4())
 
         sp_run(
             (
@@ -431,7 +431,7 @@ def copy_to_volume(
         )
 
         try:
-            processes: list[Popen] = []
+            processes: Final[list[Popen]] = []
 
             for vol, vol_dir, *_ in vol_dirs:
                 processes.append(
