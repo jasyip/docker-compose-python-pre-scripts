@@ -323,7 +323,7 @@ class _VolDir(NamedTuple):
     path: Path
     is_temp: bool = field(compare=False)
 
-    @staticmethod
+    @classmethod
     def get_dirs(
         cls,
         volumes: Mapping[str, Set[Copy]],
