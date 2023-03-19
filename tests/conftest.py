@@ -30,18 +30,7 @@ def copyobj_filled_children(root_copyobj):
     accurately reflect the file tree structure
     """
 
-    def filled_children(copyobj, *args, **kwargs):
-        if not copyobj.path.is_dir():
-            if copyobj is root_copyobj:
-                pytest.skip(f"{copyobj} is just a simple file")
-            return copyobj
+    if not root_copyobj.path.is_dir():
+        pytest.skip(f"{root_copyobj} is just a simple file")
 
-        children: frozenset[Copy] = frozenset(
-            map(
-                filled_children,
-                (Copy(path, *args, **kwargs) for path in copyobj.path.iterdir()),
-            )
-        )
-        return utils.replace_dataclass(copyobj, children=children)
-
-    return filled_children(root_copyobj)
+    return utils.filled_children(root_copyobj)

@@ -15,6 +15,7 @@ from functions import Copy
 
 DATA_DIRS: Final[tuple[Path]] = tuple((Path(__file__).parent / "data").iterdir())
 
+
 def replace_dataclass(dc, **kwargs):
     """
     An alternative to `dataclasses.replace` that also takes
@@ -56,3 +57,16 @@ def equal_trees(dir1, dir2):
         if not are_dir_trees_equal(dir1 / common_dir, dir2 / common_dir):
             return False
     return True
+
+
+def filled_children(copyobj, *args, **kwargs):
+    if not copyobj.path.is_dir():
+        return copyobj
+
+    children: frozenset[Copy] = frozenset(
+        map(
+            filled_children,
+            (Copy(path, *args, **kwargs) for path in copyobj.path.iterdir()),
+        )
+    )
+    return replace_dataclass(copyobj, children=children)

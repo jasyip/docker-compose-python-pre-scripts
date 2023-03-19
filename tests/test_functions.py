@@ -49,15 +49,37 @@ def combination_mappings(items, lens, max_partitions):
                     )
 
 
-def vol_test_maps(*args, **kwargs):
-    for mapping in combination_mappings(*args, **kwargs):
-        yield dict(zip(map(str, range(1, len(mapping) + 1)), mapping))
-
-
-@pytest.mark.parametrize(
-    "test_data_volume_mappings",
-    vol_test_maps(map(Copy, utils.DATA_DIRS), _combination_lens, 2),
+@pytest.fixture(
+    scope="module",
+    params=combination_mappings(range(len(utils.DATA_DIRS)), _combination_lens, 2),
 )
-def test_get_vol_dirs(test_data_volume_mappings):
-    vol_dirs = _VolDir.get_dirs(test_data_volume_mappings)
-    assert len(vol_dirs) == sum(map(bool, test_data_volume_mappings.values()))
+def vol_test_data_map(request):
+    return request.param
+
+
+@pytest.fixture(scope="module")
+def vol_root_copyobj_map(vol_test_data_map):
+    return {
+        str(name): frozenset(Copy(utils.DATA_DIRS[i]) for i in pw)
+        for name, pw in enumerate(vol_test_data_map, 1)
+    }
+
+
+@pytest.fixture(scope="module")
+def vol_copyobj_filled_children_map(vol_test_data_map):
+    return {
+        str(name): frozenset(
+            utils.filled_children(Copy(utils.DATA_DIRS[i])) for i in pw
+        )
+        for name, pw in enumerate(vol_test_data_map, 1)
+    }
+
+
+def test_get_vol_dirs(vol_root_copyobj_map):
+    vol_dirs = _VolDir.get_dirs(vol_root_copyobj_map)
+    assert len(vol_dirs) == sum(map(bool, vol_root_copyobj_map.values()))
+
+
+def test_get_vol_dirs2(vol_copyobj_filled_children_map):
+    vol_dirs = _VolDir.get_dirs(vol_copyobj_filled_children_map)
+    assert len(vol_dirs) == sum(map(bool, vol_copyobj_filled_children_map.values()))
