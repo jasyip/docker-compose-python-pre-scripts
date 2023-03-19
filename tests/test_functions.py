@@ -1,5 +1,6 @@
-from copy import deepcopy
-from itertools import combinations, tee
+from collections.abc import Sequence
+from itertools import accumulate, combinations, tee
+from math import ceil
 from pathlib import PurePath
 
 import pytest
@@ -8,26 +9,18 @@ import utils
 
 from functions import Copy, _VolDir
 
-# https://docs.python.org/3/library/itertools.html#itertools.combinations_with_replacement
-def combinations_with_replacement(iterable, r):
-    # combinations_with_replacement('ABC', 2) --> AA AB AC BB BC CC
-    pool = tuple(iterable)
-    n = len(pool)
-    if not n:
+
+def sorted_partitions(n, bins, *, upper_bound=None):
+    if bins == 1:
+        yield (0, n)
         return
-    if not r:
-        yield tuple()
-        return
-    indices = [0] * r
-    yield tuple(pool[i] for i in indices)
-    while True:
-        for i in reversed(range(r)):
-            if indices[i] != n - 1:
-                break
-        else:
-            return
-        indices[i:] = [indices[i] + 1] * (r - i)
-        yield tuple(pool[i] for i in indices)
+
+    if upper_bound is None:
+        upper_bound = n
+    for i in range(ceil(n / bins), upper_bound + 1):
+        for rest in sorted_partitions(n - i, bins - 1, upper_bound=i):
+            yield rest + (i,)
+
 
 # https://docs.python.org/3/library/itertools.html#itertools.pairwise
 def pairwise(iterable):
@@ -37,20 +30,34 @@ def pairwise(iterable):
     return zip(a, b)
 
 
-_combination_lens = frozenset(range(1, len(utils.DATA_DIRS) + 1)) - frozenset(range(3, len(utils.DATA_DIRS) - 1))
+_combination_lens = frozenset(range(1, len(utils.DATA_DIRS) + 1)) - frozenset(
+    range(3, len(utils.DATA_DIRS) - 1)
+)
 
-def volume_mappings():
-    for num_dirs in _combination_lens:
-        for num_volumes in range(1, min(num_dirs, 2) + 1):
-            for inds in combinations_with_replacement(range(num_dirs), num_volumes - 1):
-                inds = (0,) + inds + (num_dirs,)
-                for powerset in combinations(map(Copy, utils.DATA_DIRS), num_dirs):
-                    to_yield = {}
-                    for vol_name_id, range_bounds in enumerate(pairwise(inds), 1):
-                        to_yield[str(vol_name_id)] = frozenset(powerset[slice(*range_bounds)])
-                    yield to_yield
 
-@pytest.mark.parametrize("test_data_volume_mappings", volume_mappings())
+def combination_mappings(items, lens, max_partitions):
+    if not isinstance(items, Sequence):
+        items = tuple(items)
+    if isinstance(lens, int):
+        lens = range(1, lens + 1)
+    for subset_len in lens:
+        for num_volumes in range(1, min(subset_len, max_partitions) + 1):
+            for partitions in sorted_partitions(subset_len, num_volumes):
+                for powerset in combinations(items, subset_len):
+                    yield tuple(
+                        powerset[slice(*b)] for b in pairwise(accumulate(partitions))
+                    )
+
+
+def vol_test_maps(*args, **kwargs):
+    for mapping in combination_mappings(*args, **kwargs):
+        yield dict(zip(map(str, range(1, len(mapping) + 1)), mapping))
+
+
+@pytest.mark.parametrize(
+    "test_data_volume_mappings",
+    vol_test_maps(map(Copy, utils.DATA_DIRS), _combination_lens, 2),
+)
 def test_get_vol_dirs(test_data_volume_mappings):
     vol_dirs = _VolDir.get_dirs(test_data_volume_mappings)
     assert len(vol_dirs) == sum(map(bool, test_data_volume_mappings.values()))
